@@ -63,9 +63,13 @@ Send smarter. Carry more. ShipBroker.
 
 ## URLs
 
-- **Privacy Policy URL** (required): `https://<your-domain>/privacy.html`
-- **Support URL** (required): `https://<your-domain>/support.html`
-- **Marketing URL** (optional): `https://<your-domain>/`
+- **Privacy Policy URL** (required): `https://khatibdesigns.github.io/shipbroker/privacy.html`
+- **Support URL** (required): `https://khatibdesigns.github.io/shipbroker/support.html`
+- **Marketing URL** (optional): `https://khatibdesigns.github.io/shipbroker/`
+
+> Served from the repo's `gh-pages` branch. Enable once: repo **Settings → Pages →
+> Source: Deploy from a branch → Branch: `gh-pages` / `(root)` → Save**. Repo must
+> be public (or GitHub Pro) for Pages on the free tier.
 
 Ready-to-host pages are in `site/` (privacy.html, support.html, index.html).
 Host them anywhere static (the EC2 box, GitHub Pages, Netlify, or a subpath of an
