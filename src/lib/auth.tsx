@@ -27,6 +27,7 @@ export type Profile = {
   address?: string;
   gender?: string;
   dob?: string;
+  avatar?: string; // data URI of profile photo
   persona?: Persona;
   company?: { name?: string; address?: string; phone?: string };
   providerType?: string;
@@ -59,6 +60,7 @@ type AuthState = {
   ready: boolean; // initial auth check done
   cloud: boolean; // Firebase configured
   uid: string | null;
+  email: string | null; // signed-in user's email (from the auth provider)
   signedIn: boolean;
   isAnonymous: boolean;
   profile: Profile;
@@ -82,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [localSignedIn, setLocalSignedIn] = useState(false);
   const [profile, setProfile] = useState<Profile>({});
   const [appleAvailable, setAppleAvailable] = useState(false);
@@ -113,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         setUid(user.uid);
         setIsAnonymous(user.isAnonymous);
+        setUserEmail(user.email || null);
         if (firestore) {
           try {
             const snap = await getDoc(doc(firestore, 'users', user.uid));
@@ -135,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUid(null);
         setIsAnonymous(false);
+        setUserEmail(null);
       }
       setReady(true);
     });
@@ -225,8 +230,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLocalSignedIn(false);
     setProfile({});
     AsyncStorage.multiRemove([SIGNED_KEY, PROFILE_KEY]).catch(() => {});
-    const G = getGoogle();
-    try { if (G && googleConfigured) await G.GoogleSignin.signOut(); } catch {}
+    // Only touch the native Google module if we actually signed in with Google.
+    // (Requiring it in Expo Go throws "RNGoogleSignin could not be found".)
+    if (googleConfigured) {
+      try {
+        const G = getGoogle();
+        await G?.GoogleSignin?.signOut();
+      } catch {}
+    }
     if (isConfigured && auth) {
       try { await fbSignOut(auth); } catch {}
     }
@@ -237,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ready,
       cloud: isConfigured,
       uid,
+      email: userEmail,
       // In cloud mode, "signed in" means a real Firebase user exists (anon or
       // provider). The local flag only gates the no-Firebase fallback.
       signedIn: isConfigured ? !!uid : localSignedIn,
@@ -252,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInApple,
       signOut,
     }),
-    [ready, uid, localSignedIn, isAnonymous, profile, appleAvailable, ensureSignedIn, saveProfile, signInEmail, signUpEmail, signInGoogle, signInApple, signOut]
+    [ready, uid, userEmail, localSignedIn, isAnonymous, profile, appleAvailable, ensureSignedIn, saveProfile, signInEmail, signUpEmail, signInGoogle, signInApple, signOut]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

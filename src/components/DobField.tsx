@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
 import { colors, fonts, radius } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
@@ -19,6 +19,11 @@ function parse(value?: string): { d: number; m: number; y: number } | null {
   return { d: +mm[1], m: +mm[2], y: +mm[3] };
 }
 
+const ROW = 40;
+const COL_H = 200; // 5 rows; selection band is the centre row
+const PAD = (COL_H - ROW) / 2;
+
+// Scroll-snapping wheel column: the value centred under the band is selected.
 function Column({
   items,
   selected,
@@ -32,12 +37,35 @@ function Column({
   width: number;
   render?: (n: number) => string;
 }) {
+  const ref = useRef<ScrollView>(null);
+  const idx = Math.max(0, items.indexOf(selected));
+
+  // Align the scroll position to the selected value when the picker opens.
+  useEffect(() => {
+    const id = setTimeout(() => ref.current?.scrollTo({ y: idx * ROW, animated: false }), 0);
+    return () => clearTimeout(id);
+  }, []);
+
+  const onEnd = (y: number) => {
+    const i = Math.min(items.length - 1, Math.max(0, Math.round(y / ROW)));
+    if (items[i] !== selected) onSelect(items[i]);
+    ref.current?.scrollTo({ y: i * ROW, animated: true });
+  };
+
   return (
-    <ScrollView style={{ width, height: 200 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 80 }}>
+    <ScrollView
+      ref={ref}
+      style={{ width, height: COL_H }}
+      showsVerticalScrollIndicator={false}
+      snapToInterval={ROW}
+      decelerationRate="fast"
+      contentContainerStyle={{ paddingVertical: PAD }}
+      onMomentumScrollEnd={(e) => onEnd(e.nativeEvent.contentOffset.y)}
+    >
       {items.map((n) => {
         const on = n === selected;
         return (
-          <Pressable key={n} onPress={() => onSelect(n)} style={{ height: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable key={n} onPress={() => onEnd(items.indexOf(n) * ROW)} style={{ height: ROW, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontFamily: on ? fonts.bold : fonts.medium, fontSize: on ? 18 : 16, color: on ? colors.brandTeal : colors.textTertiary }}>
               {render ? render(n) : String(n).padStart(2, '0')}
             </Text>
@@ -117,7 +145,7 @@ export function DobField({ label, value, onChange }: { label: string; value?: st
             {/* selection guide band */}
             <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 80, height: 40, borderRadius: 12, backgroundColor: 'rgba(0,180,196,0.08)' }} />
             <Row justify="space-around" align="flex-start">
-              <Column items={days} selected={Math.min(d, daysInMonth)} onSelect={setD} width={64} />
+              <Column key={`d${daysInMonth}`} items={days} selected={Math.min(d, daysInMonth)} onSelect={setD} width={64} />
               <Column items={months} selected={m} onSelect={setM} width={120} render={monthName} />
               <Column items={years} selected={y} onSelect={setY} width={80} />
             </Row>

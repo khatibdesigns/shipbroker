@@ -397,8 +397,31 @@ export function Shipments() {
 
 export function TrackDetail({ shipmentId }: { shipmentId?: string }) {
   const { t } = useI18n();
+  const nav = useNav();
   const { getById } = useShipments();
   const s = shipmentId ? getById(shipmentId) : undefined;
+
+  // No real shipment to track → empty state (avoids showing fabricated data).
+  if (!s) {
+    return (
+      <Screen>
+        <AppBar title={t('Track shipment', 'تتبع الشحنة')} />
+        <Body contentStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 64, height: 64, borderRadius: 18, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <Icon name="pin" size={30} color={colors.textTertiary} />
+          </View>
+          <Txt size={16} weight="bold" align="center">
+            {t('Nothing to track yet', 'لا يوجد ما يُتتبع بعد')}
+          </Txt>
+          <Txt size={13.5} color={colors.textSecondary} align="center" style={{ marginTop: 6, maxWidth: 260, lineHeight: 20 }}>
+            {t('Create a shipment and select an offer — you’ll be able to track it here.', 'أنشئ شحنة واختر عرضاً — ستتمكن من تتبعها هنا.')}
+          </Txt>
+          <Button label={t('Send with AI', 'أرسل بالذكاء')} icon="sparkle" full={false} style={{ marginTop: 18, paddingHorizontal: 28 }} onPress={() => { nav.selectTab('home'); nav.push('AiAgent'); }} />
+        </Body>
+      </Screen>
+    );
+  }
+
   const item = s?.item || t('Shipment', 'شحنة');
   const order = s?.orderId || '#SB-—';
   const carrier = s?.carrier || t('Pending carrier', 'بانتظار الناقل');

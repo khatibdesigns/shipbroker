@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Image, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, gradients } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
@@ -42,9 +43,22 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export default function AccountScreen() {
   const { t } = useI18n();
   const nav = useNav();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, saveProfile } = useAuth();
   const displayName = profile.name || profile.company?.name || t('Ahmed Al-Kuwaiti', 'أحمد الكويتي');
   const displayPhone = profile.phone || profile.company?.phone || '+965 5000 0000';
+
+  const pickAvatar = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t('Permission needed', 'الإذن مطلوب'), t('Allow photo access to set a picture.', 'اسمح بالوصول للصور لتعيين صورة.'));
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.3, base64: true });
+    if (res.canceled || !res.assets?.length) return;
+    const a = res.assets[0];
+    if (a.base64) await saveProfile({ avatar: `data:${a.mimeType || 'image/jpeg'};base64,${a.base64}` });
+  };
+
   return (
     <Screen>
       <Row style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 }}>
@@ -58,7 +72,16 @@ export default function AccountScreen() {
         <LinearGradient colors={gradients.send as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 20, padding: 18, overflow: 'hidden' }}>
           <View style={{ position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: '#7D8BFF', opacity: 0.35, top: -50, right: -40 }} />
           <Row gap={14}>
-            <Avatar initials={(displayName[0] || 'A').toUpperCase()} size={56} bg="rgba(255,255,255,0.18)" color="#fff" />
+            <Pressable onPress={pickAvatar}>
+              {profile.avatar ? (
+                <Image source={{ uri: profile.avatar }} style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)' }} />
+              ) : (
+                <Avatar initials={(displayName[0] || 'A').toUpperCase()} size={56} bg="rgba(255,255,255,0.18)" color="#fff" />
+              )}
+              <View style={{ position: 'absolute', right: -2, bottom: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="camera" size={13} color={colors.sendInk} />
+              </View>
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Txt size={18} weight="extrabold" color="#fff">
                 {displayName}
@@ -96,7 +119,7 @@ export default function AccountScreen() {
         <SectionLabel>{t('Account', 'الحساب')}</SectionLabel>
         <Card>
           <View style={{ paddingHorizontal: 14 }}>
-            <LinkRow icon="pin" label={t('Track a shipment', 'تتبع شحنة')} onPress={() => nav.push('TrackDetail')} />
+            <LinkRow icon="pin" label={t('Track a shipment', 'تتبع شحنة')} onPress={() => nav.selectTab('shipments')} />
             <Hr />
             <LinkRow icon="edit" label={t('Edit personal details', 'تعديل البيانات الشخصية')} onPress={() => nav.push('CreateAccount')} />
             <Hr />

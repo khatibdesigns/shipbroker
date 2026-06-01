@@ -13,6 +13,13 @@ export default {
     scheme: 'shipbroker',
     userInterfaceStyle: 'light',
     backgroundColor: '#FFFFFF',
+    icon: './assets/icon.png',
+    // 'contain' so the full mark is shown (never cropped); teal fills the margins.
+    splash: {
+      image: './assets/icon.png',
+      resizeMode: 'contain',
+      backgroundColor: '#00C2B2',
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.khd.shipbroker',
@@ -41,6 +48,10 @@ export default {
       package: 'com.khd.shipbroker',
       googleServicesFile: './google-services.json',
       usesCleartextTraffic: true,
+      adaptiveIcon: {
+        foregroundImage: './assets/icon.png',
+        backgroundColor: '#00B4C4',
+      },
       predictiveBackGestureEnabled: false,
     },
     web: {

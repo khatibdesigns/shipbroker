@@ -13,8 +13,8 @@ export default function Splash() {
   const translateY = p.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
 
   return (
-    <LinearGradient colors={gradients.send as any} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', width: 280, height: 280, borderRadius: 140, backgroundColor: '#7D8BFF', opacity: 0.35, top: -70, right: -70 }} />
+    <LinearGradient colors={gradients.brand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', width: 280, height: 280, borderRadius: 140, backgroundColor: '#7DFFE0', opacity: 0.3, top: -70, right: -70 }} />
       <View style={{ position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: '#00D9A3', opacity: 0.25, bottom: 40, left: -60 }} />
       <Animated.View style={{ alignItems: 'center', opacity: p, transform: [{ translateY }] }}>
         <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>

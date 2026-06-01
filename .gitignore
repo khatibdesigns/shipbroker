@@ -13,3 +13,6 @@ expo-env.d.ts
 # native Firebase config (contains project keys)
 google-services.json
 GoogleService-Info.plist
+
+# design handoff / store-asset staging (large; not app source)
+/ShipBroker/

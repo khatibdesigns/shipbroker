@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, gradients } from '../lib/theme';
@@ -7,6 +7,7 @@ import { useNav } from '../lib/nav';
 import { useAuth } from '../lib/auth';
 import { Screen, Body, Row, Txt, Button, Field, Seg, AppBar, LangToggle, Upload, Link } from '../components/ui';
 import { DobField } from '../components/DobField';
+import { PlaceField } from '../components/PlaceField';
 import { Icon } from '../components/Icon';
 
 function AuthFooter() {
@@ -146,14 +147,24 @@ export function EmailAuth() {
 export function CreateAccount({ onboarding }: { onboarding?: boolean }) {
   const { t } = useI18n();
   const nav = useNav();
-  const { saveProfile, profile, signOut } = useAuth();
+  const { saveProfile, profile, signOut, email: authEmail } = useAuth();
   const [gender, setGender] = useState(profile.gender || 'male');
   const [name, setName] = useState(profile.name || '');
   const [phone, setPhone] = useState(profile.phone || '');
-  const [email, setEmail] = useState(profile.email || '');
+  const [email, setEmail] = useState(profile.email || authEmail || '');
   const [address, setAddress] = useState(profile.address || '');
   const [dob, setDob] = useState(profile.dob || '');
   const [err, setErr] = useState('');
+
+  // The email (and any profile fields) may arrive from the auth provider /
+  // Firestore just after this screen mounts — fill any blanks when they do.
+  useEffect(() => {
+    if (!email && (profile.email || authEmail)) setEmail(profile.email || authEmail || '');
+    if (!name && profile.name) setName(profile.name);
+    if (!phone && profile.phone) setPhone(profile.phone);
+    if (!address && profile.address) setAddress(profile.address);
+    if (!dob && profile.dob) setDob(profile.dob);
+  }, [profile, authEmail]);
 
   const submit = async () => {
     if (!name.trim()) {
@@ -183,7 +194,14 @@ export function CreateAccount({ onboarding }: { onboarding?: boolean }) {
         <Field label={t('Full name', 'الاسم الكامل')} ph={t('e.g. Ahmed Al-Kuwaiti', 'مثال: أحمد الكويتي')} value={name} onChangeText={setName} />
         <Field label={t('Phone number', 'رقم الهاتف')} ph="+965 50000000" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <Field label={t('Email (optional)', 'البريد (اختياري)')} ph="name@example.com" value={email} onChangeText={setEmail} keyboardType="email-address" />
-        <Field label={t('Address', 'العنوان')} ph={t('Street, Building, Area, City', 'الشارع، المبنى، المنطقة، المدينة')} value={address} onChangeText={setAddress} />
+        <PlaceField
+          label={t('Address', 'العنوان')}
+          ph={t('Search your address…', 'ابحث عن عنوانك…')}
+          icon="pin"
+          value={address}
+          onChangeText={setAddress}
+          onSelect={({ description }) => setAddress(description)}
+        />
         <View style={{ marginBottom: 16 }}>
           <Txt size={13} weight="semibold" color={colors.textSecondary} style={{ marginBottom: 7, marginHorizontal: 2 }}>
             {t('Gender', 'الجنس')}
