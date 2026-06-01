@@ -75,7 +75,7 @@ Ready-to-host pages are in `site/` (privacy.html, support.html, index.html).
 Host them anywhere static (the EC2 box, GitHub Pages, Netlify, or a subpath of an
 existing domain) and paste the resulting URLs above.
 
-Support contact email used in the pages: `support@khatibdesigns.com` (change if needed).
+Support contact email used in the pages: `nader@khatibdesigns.com` (change if needed).
 
 ---
 
