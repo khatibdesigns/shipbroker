@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// ShipBroker — each signed-in user (anonymous or otherwise) owns exactly one
+// document at users/{uid} holding their profile (name, phone, persona, company,
+// provider type). No cross-user access; nothing is readable while signed out.
+//
+// Deploy with: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Future per-user subcollections (shipments, offers, RFQs) inherit ownership.
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // Shared catalog: top-rated carriers + available packages to carry.
+    // Publicly readable; any signed-in user may seed it (first-run bootstrap).
+    // TODO: before launch, restrict writes to an admin/service account.
+    match /carriers/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /packages/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
