@@ -1,7 +1,35 @@
 import React, { useRef, useEffect } from 'react';
-import { Animated, Easing, StyleProp, ViewStyle } from 'react-native';
+import { Animated, Easing, StyleProp, ViewStyle, View, PanResponder, Dimensions } from 'react-native';
 import { useI18n } from '../lib/i18n';
 import { NavAction } from '../lib/nav';
+
+// Edge swipe-to-go-back. Left edge in LTR, right edge in RTL → calls onBack.
+export function EdgeBack({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
+  const { isRTL } = useI18n();
+  const ref = useRef({ enabled, onBack, isRTL });
+  ref.current = { enabled, onBack, isRTL };
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => {
+        const { enabled: en, isRTL: rtl } = ref.current;
+        if (!en) return false;
+        const W = Dimensions.get('window').width;
+        const edge = rtl ? g.x0 >= W - 30 && g.dx < -14 : g.x0 <= 30 && g.dx > 14;
+        return edge && Math.abs(g.dy) < 26;
+      },
+      onPanResponderRelease: (_e, g) => {
+        const { enabled: en, isRTL: rtl, onBack: cb } = ref.current;
+        if (!en) return;
+        if ((!rtl && (g.dx > 70 || g.vx > 0.5)) || (rtl && (g.dx < -70 || g.vx < -0.5))) cb();
+      },
+    })
+  ).current;
+  return (
+    <View style={{ flex: 1 }} {...pan.panHandlers}>
+      {children}
+    </View>
+  );
+}
 
 // Enter animation for a freshly-mounted screen. Keyed by nav `seq` in the Shell
 // so each navigation remounts + animates; direction follows the nav action.

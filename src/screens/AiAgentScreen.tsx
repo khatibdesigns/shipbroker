@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, ScrollView, Image, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,6 +6,7 @@ import { colors, gradients, radius, fonts } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
 import { useShipments } from '../lib/shipments';
+import { useCatalog, buildOffers } from '../lib/catalog';
 import { ShipmentDraft } from '../lib/ai';
 import { useAiChat, UiMsg } from '../lib/aichat';
 import { Screen, Row, Txt, Bubble, Chip, Card, Avatar, Button, Skeleton, Att, IconButton, LangToggle, RouteArrow } from '../components/ui';
@@ -106,14 +107,22 @@ function iconForCategory(c?: string | null): any {
   return 'cube';
 }
 
-export default function AiAgentScreen() {
+export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
   const { t } = useI18n();
   const nav = useNav();
   const { create } = useShipments();
-  const { messages, draft, chips, ready, loading, started, send, reset } = useAiChat();
+  const { carriers, getCarrier } = useCatalog();
+  const { messages, draft, chips, ready, loading, started, carrier, send, reset, startWithCarrier } = useAiChat();
   const [input, setInput] = useState('');
   const [finding, setFinding] = useState(false);
   const scroller = useRef<ScrollView>(null);
+
+  // Opened from a carrier's "Request a quote" → scope the chat to that carrier.
+  useEffect(() => {
+    if (!carrierId || carrier?.id === carrierId) return;
+    const c = getCarrier(carrierId);
+    if (c) startWithCarrier({ id: c.id, name: c.name });
+  }, [carrierId, carrier?.id, getCarrier, startWithCarrier]);
 
   const submitText = () => {
     const text = input.trim();
@@ -147,11 +156,20 @@ export default function AiAgentScreen() {
 
   const findOffers = useCallback(async () => {
     const d = draft; // capture before reset clears it
+    // If this chat is scoped to a carrier, bind the order to that carrier and go
+    // straight to its offer — skipping the multi-carrier pick page.
+    const tc = carrierId ? getCarrier(carrierId) : null;
     setFinding(true);
-    const id = await create(d);
+    const id = await create(d, tc ? { carrier: tc.name } : undefined);
     reset();
-    setTimeout(() => nav.replace('Offers', { shipmentId: id, draft: d }), 1800);
-  }, [create, draft, reset, nav]);
+    if (tc) {
+      const offers = buildOffers(d, carriers);
+      const offer = offers.find((o) => o.carrierId === tc.id) || offers[0];
+      setTimeout(() => nav.replace('OfferDetail', { shipmentId: id, offer }), 1800);
+    } else {
+      setTimeout(() => nav.replace('Offers', { shipmentId: id, draft: d }), 1800);
+    }
+  }, [create, draft, reset, nav, carrierId, getCarrier, carriers]);
 
   if (finding) {
     const Sk = () => (

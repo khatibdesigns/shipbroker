@@ -10,6 +10,8 @@ export type UiMsg = { role: 'user' | 'assistant'; text: string; uri?: string; er
 
 type SendOpts = { text?: string; imageBase64?: string; imageMime?: string; uri?: string };
 
+export type ChatCarrier = { id: string; name: string };
+
 type AiChatState = {
   messages: UiMsg[];
   draft: ShipmentDraft;
@@ -17,8 +19,10 @@ type AiChatState = {
   ready: boolean;
   loading: boolean;
   started: boolean; // user has sent at least one message
+  carrier: ChatCarrier | null; // when the chat is scoped to a specific carrier
   send: (opts: SendOpts) => Promise<void>;
   reset: () => void;
+  startWithCarrier: (carrier: ChatCarrier) => void;
 };
 
 const Ctx = createContext<AiChatState | null>(null);
@@ -28,6 +32,12 @@ function greetingFor(t: (en: string, ar?: string) => string) {
   return t(
     'Hi! Tell me what you want to send, or add a photo of the item and I’ll identify it for you.',
     'مرحباً! أخبرني بما تريد إرساله، أو أضف صورة للغرض وسأتعرّف عليه.'
+  );
+}
+function carrierGreetingFor(t: (en: string, ar?: string) => string, name: string) {
+  return t(
+    `Great choice — let's set up your shipment with ${name}. What are you sending, and from where to where?`,
+    `اختيار رائع — لنجهّز شحنتك مع ${name}. ماذا ترسل، ومن أين وإلى أين؟`
   );
 }
 function starterChips(t: (en: string, ar?: string) => string) {
@@ -42,6 +52,7 @@ export function AiChatProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
+  const [carrier, setCarrier] = useState<ChatCarrier | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   // Keep the latest values for use inside async send without stale closures.
@@ -60,6 +71,7 @@ export function AiChatProvider({ children }: { children: React.ReactNode }) {
             setChips(s.chips || []);
             setReady(!!s.ready);
             setStarted(!!s.started);
+            setCarrier(s.carrier || null);
           }
         }
       })
@@ -70,8 +82,8 @@ export function AiChatProvider({ children }: { children: React.ReactNode }) {
   // Persist whenever the conversation changes (after hydration, once started).
   useEffect(() => {
     if (!hydrated || !started) return;
-    AsyncStorage.setItem(KEY, JSON.stringify({ messages, draft, chips, ready, started })).catch(() => {});
-  }, [hydrated, started, messages, draft, chips, ready]);
+    AsyncStorage.setItem(KEY, JSON.stringify({ messages, draft, chips, ready, started, carrier })).catch(() => {});
+  }, [hydrated, started, messages, draft, chips, ready, carrier]);
 
   const send = useCallback(
     async (opts: SendOpts) => {
@@ -105,12 +117,24 @@ export function AiChatProvider({ children }: { children: React.ReactNode }) {
     setChips(starterChips(t));
     setReady(false);
     setStarted(false);
+    setCarrier(null);
+    AsyncStorage.removeItem(KEY).catch(() => {});
+  }, [t]);
+
+  // Start a fresh, carrier-scoped conversation (from a carrier's "Request a quote").
+  const startWithCarrier = useCallback((c: ChatCarrier) => {
+    setMessages([{ role: 'assistant', text: carrierGreetingFor(t, c.name) }]);
+    setDraft({});
+    setChips(starterChips(t));
+    setReady(false);
+    setStarted(false);
+    setCarrier(c);
     AsyncStorage.removeItem(KEY).catch(() => {});
   }, [t]);
 
   const value = useMemo<AiChatState>(
-    () => ({ messages, draft, chips, ready, loading, started, send, reset }),
-    [messages, draft, chips, ready, loading, started, send, reset]
+    () => ({ messages, draft, chips, ready, loading, started, carrier, send, reset, startWithCarrier }),
+    [messages, draft, chips, ready, loading, started, carrier, send, reset, startWithCarrier]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

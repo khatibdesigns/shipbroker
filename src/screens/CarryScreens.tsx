@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable } from 'react-native';
 import { colors } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
@@ -9,6 +9,8 @@ import {
 } from '../components/ui';
 import { Icon, IconName, Star } from '../components/Icon';
 import { useCatalog } from '../lib/catalog';
+import { RouteMap } from '../components/PlaceField';
+import { geocode, LatLng } from '../lib/places';
 import { PackageCard, CarrierRow } from './shared';
 
 function pkgIcon(cat: string): IconName {
@@ -212,11 +214,11 @@ export function CarrierProfile({ id }: { id?: string }) {
           </Card>
         ))}
 
-        {/* CTA */}
-        <Row gap={10} style={{ marginTop: 8 }}>
-          <Button label={t('Message', 'مراسلة')} variant="secondary" style={{ flex: 1 }} />
-          <Button label={t('Request a quote', 'اطلب عرض سعر')} icon="sparkle" iconColor="#fff" style={{ flex: 2 }} onPress={() => { nav.popToRoot(); nav.switchTab('home'); nav.push('AiAgent'); }} />
-        </Row>
+        {/* CTA — messaging unlocks only after an order exists with this carrier. */}
+        <Button label={t('Request a quote', 'اطلب عرض سعر')} icon="sparkle" iconColor="#fff" style={{ marginTop: 8 }} onPress={() => nav.push('AiAgent', { carrierId: c.id })} />
+        <Txt size={12} weight="semibold" color={colors.textTertiary} align="center" style={{ marginTop: 10 }}>
+          {t('You can message the carrier once your order is placed.', 'يمكنك مراسلة الناقل بعد تأكيد طلبك.')}
+        </Txt>
       </Body>
     </Screen>
   );
@@ -305,10 +307,8 @@ export function PackageDetail({ id }: { id?: string }) {
           </View>
           <Badge label={t('Verified', 'موثّق')} icon="shield" />
         </Card>
-        <Row gap={10}>
-          <Button label={t('Message', 'مراسلة')} variant="secondary" style={{ flex: 1 }} />
-          <Button label={t('Make an offer', 'قدّم عرضاً')} variant="carry" style={{ flex: 2 }} />
-        </Row>
+        {/* Messaging the sender unlocks after you make an offer. */}
+        <Button label={t('Make an offer', 'قدّم عرضاً')} variant="carry" />
       </Body>
     </Screen>
   );
@@ -334,11 +334,11 @@ export function Shipments() {
                 {s.item || t('Shipment', 'شحنة')}
               </Txt>
               <Row gap={6} style={{ marginTop: 3 }}>
-                <Txt size={13} weight="semibold" color={colors.textSecondary}>
+                <Txt size={13} weight="semibold" color={colors.textSecondary} numberOfLines={1} style={{ flexShrink: 1 }}>
                   {s.fromCity || '—'}
                 </Txt>
                 <RouteArrow size={13} />
-                <Txt size={13} weight="semibold" color={colors.textSecondary}>
+                <Txt size={13} weight="semibold" color={colors.textSecondary} numberOfLines={1} style={{ flexShrink: 1 }}>
                   {s.toCity || '—'}
                 </Txt>
               </Row>
@@ -401,6 +401,19 @@ export function TrackDetail({ shipmentId }: { shipmentId?: string }) {
   const { getById } = useShipments();
   const s = shipmentId ? getById(shipmentId) : undefined;
 
+  // Geocode the shipment's cities → real map route. (Hooks must run before any return.)
+  const [coords, setCoords] = useState<{ from?: LatLng | null; to?: LatLng | null }>({});
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [f, to2] = await Promise.all([geocode(s?.fromCity || ''), geocode(s?.toCity || '')]);
+      if (alive) setCoords({ from: f, to: to2 });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [s?.fromCity, s?.toCity]);
+
   // No real shipment to track → empty state (avoids showing fabricated data).
   if (!s) {
     return (
@@ -440,11 +453,20 @@ export function TrackDetail({ shipmentId }: { shipmentId?: string }) {
     <Screen>
       <AppBar title={t('Track shipment', 'تتبع الشحنة')} />
       <Body>
-        <MapRoute height={150} style={{ marginBottom: 16 }} />
+        <RouteMap from={coords.from} to={coords.to} height={150} style={{ marginBottom: 14 }} />
+        <Row gap={8} style={{ marginBottom: 14 }}>
+          <Txt size={17} weight="extrabold" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {from}
+          </Txt>
+          <RouteArrow size={17} />
+          <Txt size={17} weight="extrabold" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {to}
+          </Txt>
+        </Row>
         <Card style={{ padding: 15, marginBottom: 18 }}>
           <Row gap={12}>
             <Avatar icon="box" size={44} rounded={12} bg={colors.surfaceMuted} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Txt size={15} weight="bold" numberOfLines={1}>
                 {item}
               </Txt>

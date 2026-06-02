@@ -3,13 +3,13 @@ import { View, BackHandler } from 'react-native';
 import { useNav } from './lib/nav';
 import { useAuth } from './lib/auth';
 import { colors } from './lib/theme';
-import { ScreenTransition } from './components/anim';
+import { ScreenTransition, EdgeBack } from './components/anim';
 import Splash from './components/Splash';
 
 import HomeScreen from './screens/HomeScreen';
 import AccountScreen from './screens/AccountScreen';
 import AiAgentScreen from './screens/AiAgentScreen';
-import { Offers, OffersFilter, OfferDetail, Escrow } from './screens/OffersScreens';
+import { Offers, OfferDetail, Escrow } from './screens/OffersScreens';
 import { AvailablePackages, PackageDetail, Shipments, TrackDetail, Carriers, CarrierProfile } from './screens/CarryScreens';
 import { Welcome, EmailAuth, CreateAccount, RegisterProvider } from './screens/AuthScreens';
 import { ProviderTypes, FreightForwarder, Trucking, Winch, MarineCaptain } from './screens/ProviderScreens';
@@ -25,7 +25,6 @@ const SCREENS: Record<string, React.ComponentType<any>> = {
   Account: AccountScreen,
   // AI + offers
   AiAgent: AiAgentScreen,
-  OffersFilter,
   OfferDetail,
   Escrow,
   // carry + tracking
@@ -92,11 +91,13 @@ export default function Shell() {
     const name = AUTH_FLOW.has(nav.current.name) ? nav.current.name : 'Welcome';
     const AuthComp = SCREENS[name] ?? Welcome;
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <ScreenTransition key={nav.seq} action={nav.action}>
-          <AuthComp {...(nav.current.params ?? {})} />
-        </ScreenTransition>
-      </View>
+      <EdgeBack enabled={nav.canGoBack} onBack={nav.pop}>
+        <View style={{ flex: 1, backgroundColor: colors.bg }}>
+          <ScreenTransition key={nav.seq} action={nav.action}>
+            <AuthComp {...(nav.current.params ?? {})} />
+          </ScreenTransition>
+        </View>
+      </EdgeBack>
     );
   }
 
@@ -113,10 +114,12 @@ export default function Shell() {
 
   const Comp = SCREENS[nav.current.name] ?? HomeScreen;
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenTransition key={nav.seq} action={nav.action}>
-        <Comp {...(nav.current.params ?? {})} />
-      </ScreenTransition>
-    </View>
+    <EdgeBack enabled={nav.canGoBack} onBack={nav.pop}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <ScreenTransition key={nav.seq} action={nav.action}>
+          <Comp {...(nav.current.params ?? {})} />
+        </ScreenTransition>
+      </View>
+    </EdgeBack>
   );
 }

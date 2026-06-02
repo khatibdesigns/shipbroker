@@ -1,6 +1,6 @@
 {
   "name": "shipbroker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.2",
@@ -13,6 +13,7 @@
     "expo-font": "~56.0.5",
     "expo-image-picker": "~56.0.5",
     "expo-linear-gradient": "~56.0.4",
+    "expo-splash-screen": "~56.0.4",
     "expo-status-bar": "~56.0.4",
     "firebase": "^12.14.0",
     "react": "19.2.3",

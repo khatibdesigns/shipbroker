@@ -9,6 +9,7 @@ import {
 import { Select, Option } from '../components/Select';
 import { PlaceField, RouteMap } from '../components/PlaceField';
 import { useShipments } from '../lib/shipments';
+import { useRfq } from '../lib/rfq';
 import { ShipMode } from '../lib/ai';
 import { Icon, IconName } from '../components/Icon';
 
@@ -415,7 +416,18 @@ export function ServicesGrid() {
 export function QuickRFQ() {
   const { t } = useI18n();
   const nav = useNav();
+  const rfq = useRfq();
   const [type, setType] = useState('docs');
+  const sendRequest = () => {
+    rfq.add({
+      icon: 'plane',
+      label: t('Air Freight', 'شحن جوي'),
+      sub: type === 'goods' ? t('Goods', 'بضائع') : t('Documents', 'مستندات'),
+      mode: 'air',
+    });
+    nav.pop();
+    nav.push('RFQCart');
+  };
   return (
     <Screen>
       <AppBar title={t('Services', 'الخدمات')} />
@@ -446,7 +458,7 @@ export function QuickRFQ() {
           </View>
         </Row>
         <Field label={t('Ready date', 'تاريخ الجاهزية')} ph={t('Pick a date', 'اختر التاريخ')} icon="clock" />
-        <Button label={t('Send Request', 'إرسال الطلب')} size="lg" onPress={() => { nav.pop(); nav.push('RFQCart'); }} />
+        <Button label={t('Send Request', 'إرسال الطلب')} size="lg" onPress={sendRequest} />
         <Link label={t('Advanced details', 'تفاصيل متقدمة')} style={{ marginTop: 10 }} onPress={() => { nav.pop(); nav.push('WizardStep1'); }} />
       </Sheet>
     </Screen>
@@ -456,12 +468,18 @@ export function QuickRFQ() {
 export function ServicesAdd() {
   const { t } = useI18n();
   const nav = useNav();
-  const items: { icon: IconName; label: string }[] = [
-    { icon: 'ship', label: t('Sea FCL', 'بحري FCL') },
-    { icon: 'truck', label: t('Road Flatbed', 'بري مسطّح') },
-    { icon: 'ware', label: t('Warehousing', 'تخزين') },
+  const rfq = useRfq();
+  const items: { icon: IconName; label: string; sub: string; mode: ShipMode }[] = [
+    { icon: 'ship', label: t('Sea FCL', 'بحري FCL'), sub: t('Port to Port', 'ميناء إلى ميناء'), mode: 'sea' },
+    { icon: 'truck', label: t('Road Flatbed', 'بري مسطّح'), sub: t('Local pickup', 'استلام محلي'), mode: 'road' },
+    { icon: 'ware', label: t('Warehousing', 'تخزين'), sub: t('Ambient storage', 'تخزين عادي'), mode: 'road' },
+    { icon: 'plane', label: t('Air Express', 'جوي سريع'), sub: t('Docs & goods', 'مستندات وبضائع'), mode: 'air' },
   ];
-  const [count, setCount] = useState(2);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const addItem = (it: { icon: IconName; label: string; sub: string; mode: ShipMode }) => {
+    rfq.add({ icon: it.icon, label: it.label, sub: it.sub, mode: it.mode });
+    setJustAdded(it.label);
+  };
   return (
     <Screen>
       <Row gap={12} style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 }}>
@@ -471,37 +489,61 @@ export function ServicesAdd() {
         </Txt>
         <Row gap={12}>
           <LangToggle />
-          <Pressable onPress={() => nav.push('RFQCart')} style={{ position: 'relative' }}>
-            <IconButton name="list" size={18} onPress={() => nav.push('RFQCart')} />
-            <View style={{ position: 'absolute', top: -6, right: -6 }}>
-              <PillCount n={count} />
-            </View>
+          <Pressable onPress={() => nav.push('RFQCart')} style={{ position: 'relative' }} hitSlop={8}>
+            <IconButton name="cart" size={19} onPress={() => nav.push('RFQCart')} />
+            {rfq.count > 0 && (
+              <View style={{ position: 'absolute', top: -6, right: -6 }}>
+                <PillCount n={rfq.count} />
+              </View>
+            )}
           </Pressable>
         </Row>
       </Row>
       <Body>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
-          {items.map((it) => (
-            <Card key={it.label} flat style={{ width: '47.5%', padding: 14 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                <Icon name={it.icon} size={21} color={colors.brandTeal} />
-              </View>
-              <Txt size={14.5} weight="bold" style={{ marginBottom: 12 }}>
-                {it.label}
-              </Txt>
-              <Button label={t('Add to RFQ', 'أضف للطلب')} variant="ghost" size="sm" icon="plus" iconColor={colors.textPrimary} onPress={() => setCount((c) => c + 1)} />
-            </Card>
-          ))}
+          {items.map((it) => {
+            const inCart = rfq.items.some((i) => i.label === it.label);
+            return (
+              <Card key={it.label} flat style={{ width: '47.5%', padding: 14 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <Icon name={it.icon} size={21} color={colors.brandTeal} />
+                </View>
+                <Txt size={14.5} weight="bold">
+                  {it.label}
+                </Txt>
+                <Txt size={12} weight="semibold" color={colors.textSecondary} style={{ marginBottom: 12 }}>
+                  {it.sub}
+                </Txt>
+                <Button
+                  label={inCart ? t('Add again', 'أضف مرة أخرى') : t('Add to RFQ', 'أضف للطلب')}
+                  variant="ghost"
+                  size="sm"
+                  icon="plus"
+                  iconColor={colors.textPrimary}
+                  onPress={() => addItem(it)}
+                />
+              </Card>
+            );
+          })}
         </View>
       </Body>
-      <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
-        <Card flat style={{ backgroundColor: colors.textPrimary, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10, borderColor: 'transparent' }}>
-          <Icon name="check" size={18} color={colors.brandMint} sw={2.4} />
-          <Txt size={14} weight="bold" color="#fff">
-            {t('Added to RFQ', 'أُضيف للطلب')}
-          </Txt>
-        </Card>
-      </View>
+      {rfq.count > 0 && (
+        <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+          <Pressable onPress={() => nav.push('RFQCart')}>
+            <Card flat style={{ backgroundColor: colors.textPrimary, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10, borderColor: 'transparent' }}>
+              <Icon name="check" size={18} color={colors.brandMint} sw={2.4} />
+              <Txt size={14} weight="bold" color="#fff" style={{ flex: 1 }}>
+                {justAdded
+                  ? t(`Added “${justAdded}”`, `أُضيف «${justAdded}»`)
+                  : t('Added to RFQ', 'أُضيف للطلب')}
+              </Txt>
+              <Txt size={13} weight="bold" color={colors.brandMint}>
+                {t(`View cart (${rfq.count})`, `عرض السلة (${rfq.count})`)}
+              </Txt>
+            </Card>
+          </Pressable>
+        </View>
+      )}
       <BottomNav />
     </Screen>
   );
@@ -510,18 +552,56 @@ export function ServicesAdd() {
 export function RFQCart() {
   const { t } = useI18n();
   const nav = useNav();
-  const items: { label: string; sub: string; icon: IconName }[] = [
-    { label: t('Sea FCL (40HC)', 'بحري FCL (40HC)'), sub: t('Port to Port', 'ميناء إلى ميناء'), icon: 'ship' },
-    { label: t('Road Flatbed', 'بري مسطّح'), sub: t('Local pickup', 'استلام محلي'), icon: 'truck' },
-    { label: t('Warehousing', 'تخزين'), sub: t('Ambient', 'تخزين عادي'), icon: 'ware' },
-  ];
+  const rfq = useRfq();
+  const { create } = useShipments();
+  const [submitting, setSubmitting] = useState(false);
+  const count = rfq.count;
+
+  const submit = async () => {
+    if (!count || submitting) return;
+    setSubmitting(true);
+    // Combined RFQ → one real shipment seeking offers, summarising the bundle.
+    const labels = rfq.items.map((i) => i.label);
+    const modes = rfq.items.map((i) => i.mode).filter(Boolean) as ShipMode[];
+    await create({
+      item: t(`Combined RFQ · ${count} services`, `طلب مجمّع · ${count} خدمات`),
+      category: 'rfq',
+      mode: modes.includes('sea') ? 'sea' : modes[0],
+      notes: labels.join(' · '),
+    });
+    rfq.clear();
+    nav.popToRoot();
+    nav.switchTab('offers');
+  };
+
+  if (!count) {
+    return (
+      <Screen>
+        <AppBar title={t('RFQ Cart', 'سلة الطلب')} />
+        <Body contentStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
+            <Icon name="cart" size={34} color={colors.textTertiary} />
+          </View>
+          <Txt size={17} weight="bold" align="center">
+            {t('Your RFQ cart is empty', 'سلة الطلب فارغة')}
+          </Txt>
+          <Txt size={13.5} color={colors.textSecondary} align="center" style={{ marginTop: 6, maxWidth: 260, lineHeight: 20 }}>
+            {t('Add services to request one bundled quote from companies.', 'أضف خدمات لطلب عرض سعر موحّد من الشركات.')}
+          </Txt>
+          <Button label={t('Browse services', 'تصفّح الخدمات')} icon="plus" full={false} style={{ marginTop: 20, paddingHorizontal: 26 }} onPress={() => nav.push('ServicesAdd')} />
+        </Body>
+        <BottomNav />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
-      <AppBar title={t('RFQ Cart (3)', 'سلة الطلب (3)')} />
+      <AppBar title={t(`RFQ Cart (${count})`, `سلة الطلب (${count})`)} />
       <Body>
         <View style={{ gap: 11, marginBottom: 14 }}>
-          {items.map((it) => (
-            <Card key={it.label} flat style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {rfq.items.map((it) => (
+            <Card key={it.id} flat style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name={it.icon} size={21} color={colors.brandTeal} />
               </View>
@@ -533,10 +613,7 @@ export function RFQCart() {
                   {it.sub}
                 </Txt>
               </View>
-              <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Link label={t('Edit', 'تعديل')} brand style={{ padding: 0 }} />
-                <Link label={t('Remove', 'حذف')} color={colors.error} style={{ padding: 0 }} />
-              </View>
+              <Link label={t('Remove', 'حذف')} color={colors.error} style={{ padding: 0 }} onPress={() => rfq.remove(it.id)} />
             </Card>
           ))}
         </View>
@@ -548,10 +625,10 @@ export function RFQCart() {
             </Txt>
           </Row>
           <Txt size={13} weight="semibold" color={colors.textSecondary} style={{ lineHeight: 20 }}>
-            {t('Tentative timeline & combined RFQ across 3 services. Companies will quote a bundled price.', 'جدول مبدئي وطلب مجمّع عبر 3 خدمات. ستقدّم الشركات سعراً موحّداً.')}
+            {t(`Combined RFQ across ${count} ${count === 1 ? 'service' : 'services'}. Companies will quote a bundled price.`, `طلب مجمّع عبر ${count} خدمات. ستقدّم الشركات سعراً موحّداً.`)}
           </Txt>
         </Card>
-        <Button label={t('Submit Combined RFQ', 'إرسال الطلب المجمّع')} size="lg" onPress={() => { nav.popToRoot(); nav.switchTab('offers'); }} />
+        <Button label={submitting ? t('Submitting…', 'جارٍ الإرسال…') : t('Submit Combined RFQ', 'إرسال الطلب المجمّع')} size="lg" onPress={submit} />
         <Link label={t('Add more services', 'أضف خدمات أخرى')} brand icon="plus" style={{ marginTop: 12 }} onPress={() => nav.push('ServicesAdd')} />
       </Body>
     </Screen>

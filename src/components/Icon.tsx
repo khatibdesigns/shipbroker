@@ -33,6 +33,7 @@ export const ICONS = {
   location: 'M12 3v3M12 18v3M3 12h3M18 12h3M12 8a4 4 0 100 8 4 4 0 000-8z',
   bolt: 'M13 3L5 13h5l-1 8 8-10h-5z',
   list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+  cart: 'M3 4h2.2l1.8 11.2a1 1 0 001 .85h8.4a1 1 0 001-.8L20 7.5H6.2M9.5 20.5a1 1 0 100-2 1 1 0 000 2zM16.5 20.5a1 1 0 100-2 1 1 0 000 2z',
   offers: 'M4 7h16v10H4zM4 11h16M8 15h3',
   lock: 'M7 11V8a5 5 0 0110 0v3M5 11h14v9H5z',
   cube: 'M12 3l8 4v10l-8 4-8-4V7zM4 7l8 4 8-4',

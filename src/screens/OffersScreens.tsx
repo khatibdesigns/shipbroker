@@ -24,7 +24,7 @@ function headerIcon(category?: string | null): IconName {
   return 'cube';
 }
 
-function ShipmentHeader({ draft }: { draft?: ShipmentDraft }) {
+function ShipmentHeader({ draft, onFilter }: { draft?: ShipmentDraft; onFilter?: () => void }) {
   const { t } = useI18n();
   const nav = useNav();
   // Use the real created shipment when present; otherwise a representative sample.
@@ -44,7 +44,7 @@ function ShipmentHeader({ draft }: { draft?: ShipmentDraft }) {
         <Txt size={18} weight="bold" align="center" style={{ flex: 1 }}>
           {t('Offers', 'العروض')}
         </Txt>
-        <IconButton name="filter" size={18} onPress={() => nav.push('OffersFilter')} />
+        <IconButton name="filter" size={18} onPress={onFilter} />
       </Row>
       <Row gap={12}>
         <View style={{ width: 52, height: 52, borderRadius: 13, backgroundColor: '#e7ebef', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border }}>
@@ -164,21 +164,105 @@ function fmtReviews(n: number) {
   return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
 }
 
+type FilterKey = 'ai' | 'plh' | 'phl' | 'fast' | 'rate' | 'co' | 'tr';
+
+// Apply the chosen sort/filter to the generated offers. 'ai'/'co'/'tr' keep the
+// AI-Choice-first ordering from buildOffers; the rest re-sort the list.
+function applyFilter(offers: Offer[], key: FilterKey): Offer[] {
+  const price = (o: Offer) => parseFloat(o.price.replace(/,/g, '')) || 0;
+  const speed = (o: Offer) => (o.mode === 'air' ? 1 : o.mode === 'road' ? 2 : 3);
+  let r = offers.slice();
+  if (key === 'co') r = r.filter((o) => o.type === 'company');
+  else if (key === 'tr') r = r.filter((o) => o.type === 'traveller');
+  if (key === 'plh') r.sort((a, b) => price(a) - price(b));
+  else if (key === 'phl') r.sort((a, b) => price(b) - price(a));
+  else if (key === 'fast') r.sort((a, b) => speed(a) - speed(b) || b.rating - a.rating);
+  else if (key === 'rate') r.sort((a, b) => b.rating - a.rating);
+  return r;
+}
+
+const FILTER_LABELS: Record<FilterKey, [string, string]> = {
+  ai: ['AI Choice', 'اختيار الذكاء'],
+  plh: ['Price: Low to High', 'السعر: من الأقل'],
+  phl: ['Price: High to Low', 'السعر: من الأعلى'],
+  fast: ['Fastest delivery', 'الأسرع توصيلاً'],
+  rate: ['Highest rating', 'الأعلى تقييماً'],
+  co: ['Companies only', 'الشركات فقط'],
+  tr: ['Travellers only', 'المسافرون فقط'],
+};
+
+function FilterSheet({ value, onApply, onClose }: { value: FilterKey; onApply: (k: FilterKey) => void; onClose: () => void }) {
+  const { t } = useI18n();
+  const [sel, setSel] = React.useState<FilterKey>(value);
+  const rows: { key: FilterKey; ic?: IconName }[] = [
+    { key: 'ai', ic: 'sparkle' },
+    { key: 'plh', ic: 'offers' },
+    { key: 'phl' },
+    { key: 'fast', ic: 'bolt' },
+    { key: 'rate', ic: 'star' },
+    { key: 'co', ic: 'ship' },
+    { key: 'tr', ic: 'user' },
+  ];
+  return (
+    <>
+      <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20,24,31,0.45)' }} onPress={onClose} />
+      <Sheet>
+        <Row justify="space-between" style={{ marginBottom: 8 }}>
+          <Txt size={18} weight="bold">
+            {t('Sort & filter', 'الترتيب والتصفية')}
+          </Txt>
+          <IconButton name="close" size={16} d={32} bare bg={colors.surfaceMuted} onPress={onClose} />
+        </Row>
+        {rows.map((r) => {
+          const on = r.key === sel;
+          return (
+            <Pressable key={r.key} onPress={() => setSel(r.key)}>
+              <Row justify="space-between" style={{ paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <Row gap={11}>
+                  {r.ic && <Icon name={r.ic} size={19} color={on ? colors.brandTeal : colors.textTertiary} />}
+                  <Txt size={15} weight={on ? 'bold' : 'semibold'} color={on ? colors.textPrimary : colors.textSecondary}>
+                    {t(FILTER_LABELS[r.key][0], FILTER_LABELS[r.key][1])}
+                  </Txt>
+                </Row>
+                {on ? (
+                  <LinearGradient colors={gradients.brand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="check" size={13} color="#fff" sw={2.6} />
+                  </LinearGradient>
+                ) : (
+                  <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.border }} />
+                )}
+              </Row>
+            </Pressable>
+          );
+        })}
+        <Button label={t('Apply', 'تطبيق')} style={{ marginTop: 16 }} onPress={() => onApply(sel)} />
+      </Sheet>
+    </>
+  );
+}
+
 export function Offers({ shipmentId, draft }: { shipmentId?: string; draft?: ShipmentDraft }) {
   const { t, lang } = useI18n();
   const nav = useNav();
   const { carriers } = useCatalog();
-  const { active, getById } = useShipments();
-  const sid = shipmentId || active?.id;
-  const sdraft = draft || (sid ? getById(sid) : undefined) || active || {};
-  const offers = buildOffers(sdraft, carriers);
+  const { shipments, getById } = useShipments();
+
+  // An "active RFQ" is a shipment still seeking offers. Once an offer is selected
+  // the shipment moves to in_transit, so the Offers tab has nothing to show.
+  const pending = shipments.find((s) => s.status === 'finding_offers');
+  const sid = shipmentId || pending?.id;
+  const sdraft = draft || (sid ? getById(sid) : undefined);
+
+  const [filter, setFilter] = React.useState<FilterKey>('ai');
+  const [filterOpen, setFilterOpen] = React.useState(false);
+  const offers = sdraft ? applyFilter(buildOffers(sdraft, carriers), filter) : [];
 
   const [ask, setAsk] = React.useState<{ offer: Offer; loading: boolean; text: string; err: string } | null>(null);
   const openAsk = async (o: Offer) => {
     setAsk({ offer: o, loading: true, text: '', err: '' });
     try {
       const text = await askAboutOffer({
-        shipment: sdraft,
+        shipment: sdraft || {},
         offer: { name: o.name, mode: o.mode, price: o.price, eta: lang === 'ar' ? o.eta.ar : o.eta.en, rating: o.rating, type: o.type },
         lang,
       });
@@ -188,14 +272,47 @@ export function Offers({ shipmentId, draft }: { shipmentId?: string; draft?: Shi
     }
   };
 
+  // No active RFQ → nothing to show (the user already selected an offer, or
+  // hasn't requested a shipment yet).
+  if (!sdraft) {
+    return (
+      <Screen>
+        <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <Row style={{ marginBottom: 4 }}>
+            {nav.canGoBack ? <IconButton name="back" flip onPress={nav.pop} /> : <View style={{ width: 38 }} />}
+            <Txt size={18} weight="bold" align="center" style={{ flex: 1 }}>
+              {t('Offers', 'العروض')}
+            </Txt>
+            <View style={{ width: 38 }} />
+          </Row>
+        </View>
+        <Body contentStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
+            <Icon name="offers" size={34} color={colors.textTertiary} />
+          </View>
+          <Txt size={17} weight="bold" align="center">
+            {t('No active requests', 'لا توجد طلبات نشطة')}
+          </Txt>
+          <Txt size={13.5} color={colors.textSecondary} align="center" style={{ marginTop: 6, maxWidth: 270, lineHeight: 20 }}>
+            {t('Once you request a shipment, carrier offers will appear here.', 'بمجرد طلب شحنة، ستظهر عروض الناقلين هنا.')}
+          </Txt>
+          <Button label={t('New shipment', 'شحنة جديدة')} icon="sparkle" iconColor="#fff" full={false} style={{ marginTop: 20, paddingHorizontal: 26 }} onPress={() => { nav.switchTab('home'); nav.push('AiAgent'); }} />
+        </Body>
+        <BottomNav />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
-      <ShipmentHeader draft={sdraft} />
+      <ShipmentHeader draft={sdraft} onFilter={() => setFilterOpen(true)} />
       <Body>
         <Row gap={7} style={{ marginVertical: 14 }}>
           <Icon name="sparkle" size={16} color={colors.brandTeal} sw={2} />
           <Txt size={13.5} weight="semibold" color={colors.textSecondary} style={{ flex: 1 }}>
-            {offers.length
+            {filter !== 'ai'
+              ? t(`Showing ${offers.length} ${offers.length === 1 ? 'offer' : 'offers'} · ${t(FILTER_LABELS[filter][0], FILTER_LABELS[filter][1])}`, `عرض ${offers.length} · ${t(FILTER_LABELS[filter][0], FILTER_LABELS[filter][1])}`)
+              : offers.length
               ? t('I found the best matches for your shipment.', 'وجدت أفضل العروض المناسبة لشحنتك.')
               : t('Loading offers…', 'جارٍ تحميل العروض…')}
           </Txt>
@@ -260,57 +377,14 @@ export function Offers({ shipmentId, draft }: { shipmentId?: string; draft?: Shi
           </Sheet>
         </>
       )}
-    </Screen>
-  );
-}
 
-export function OffersFilter() {
-  const { t } = useI18n();
-  const nav = useNav();
-  const [sel, setSel] = React.useState('ai');
-  const rows: { key: string; label: string; ic?: IconName }[] = [
-    { key: 'ai', label: t('AI Choice', 'اختيار الذكاء'), ic: 'sparkle' },
-    { key: 'plh', label: t('Price: Low to High', 'السعر: من الأقل'), ic: 'offers' },
-    { key: 'phl', label: t('Price: High to Low', 'السعر: من الأعلى') },
-    { key: 'fast', label: t('Fastest delivery', 'الأسرع توصيلاً'), ic: 'bolt' },
-    { key: 'rate', label: t('Highest rating', 'الأعلى تقييماً'), ic: 'star' },
-    { key: 'co', label: t('Companies only', 'الشركات فقط'), ic: 'ship' },
-    { key: 'tr', label: t('Travellers only', 'المسافرون فقط'), ic: 'user' },
-  ];
-  return (
-    <Screen bg="rgba(20,24,31,0.45)">
-      <Pressable style={{ flex: 1 }} onPress={nav.pop} />
-      <Sheet>
-        <Row justify="space-between" style={{ marginBottom: 8 }}>
-          <Txt size={18} weight="bold">
-            {t('Sort & filter', 'الترتيب والتصفية')}
-          </Txt>
-          <IconButton name="close" size={16} d={32} bare bg={colors.surfaceMuted} onPress={nav.pop} />
-        </Row>
-        {rows.map((r) => {
-          const on = r.key === sel;
-          return (
-            <Pressable key={r.key} onPress={() => setSel(r.key)}>
-              <Row justify="space-between" style={{ paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                <Row gap={11}>
-                  {r.ic && <Icon name={r.ic} size={19} color={on ? colors.brandTeal : colors.textTertiary} />}
-                  <Txt size={15} weight={on ? 'bold' : 'semibold'} color={on ? colors.textPrimary : colors.textSecondary}>
-                    {r.label}
-                  </Txt>
-                </Row>
-                {on ? (
-                  <LinearGradient colors={gradients.brand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="check" size={13} color="#fff" sw={2.6} />
-                  </LinearGradient>
-                ) : (
-                  <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.border }} />
-                )}
-              </Row>
-            </Pressable>
-          );
-        })}
-        <Button label={t('Apply', 'تطبيق')} style={{ marginTop: 16 }} onPress={nav.pop} />
-      </Sheet>
+      {filterOpen && (
+        <FilterSheet
+          value={filter}
+          onClose={() => setFilterOpen(false)}
+          onApply={(k) => { setFilter(k); setFilterOpen(false); }}
+        />
+      )}
     </Screen>
   );
 }

@@ -8,22 +8,16 @@ export default {
   expo: {
     name: 'ShipBroker',
     slug: 'shipbroker',
-    version: '1.0.0',
+    version: '1.0.1',
     orientation: 'portrait',
     scheme: 'shipbroker',
     userInterfaceStyle: 'light',
     backgroundColor: '#FFFFFF',
     icon: './assets/icon.png',
-    // 'contain' so the full mark is shown (never cropped); teal fills the margins.
-    splash: {
-      image: './assets/icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#00C2B2',
-    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.khd.shipbroker',
-      buildNumber: '1',
+      buildNumber: '2',
       usesAppleSignIn: true,
       // Used by native / EAS builds. Ignored in Expo Go.
       googleServicesFile: './GoogleService-Info.plist',
@@ -46,6 +40,7 @@ export default {
     },
     android: {
       package: 'com.khd.shipbroker',
+      versionCode: 2,
       googleServicesFile: './google-services.json',
       usesCleartextTraffic: true,
       adaptiveIcon: {
@@ -59,6 +54,16 @@ export default {
     },
     plugins: [
       'expo-font',
+      // Splash: a fixed-width centred logo on teal — never clipped (contain).
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/icon.png',
+          imageWidth: 180,
+          resizeMode: 'contain',
+          backgroundColor: '#00C2B2',
+        },
+      ],
       'expo-apple-authentication',
       ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }],
       [

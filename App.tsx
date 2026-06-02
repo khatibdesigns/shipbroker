@@ -22,6 +22,7 @@ import { NavProvider } from './src/lib/nav';
 import { AuthProvider } from './src/lib/auth';
 import { ShipmentsProvider } from './src/lib/shipments';
 import { CatalogProvider } from './src/lib/catalog';
+import { RfqProvider } from './src/lib/rfq';
 import { AiChatProvider } from './src/lib/aichat';
 import { colors } from './src/lib/theme';
 import Splash from './src/components/Splash';
@@ -54,12 +55,14 @@ export default function App() {
         <AuthProvider>
           <ShipmentsProvider>
             <CatalogProvider>
-              <AiChatProvider>
-                <NavProvider>
-                  <StatusBar style="auto" />
-                  <Shell />
-                </NavProvider>
-              </AiChatProvider>
+              <RfqProvider>
+                <AiChatProvider>
+                  <NavProvider>
+                    <StatusBar style="auto" />
+                    <Shell />
+                  </NavProvider>
+                </AiChatProvider>
+              </RfqProvider>
             </CatalogProvider>
           </ShipmentsProvider>
         </AuthProvider>

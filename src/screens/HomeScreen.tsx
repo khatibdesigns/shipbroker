@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { colors } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
@@ -39,39 +39,42 @@ function ActiveTracker() {
     );
   }
   const inTransit = active.status === 'in_transit' || active.status === 'booked';
+  const open = () => nav.push('TrackDetail', { shipmentId: active.id });
   return (
-    <Card style={{ padding: 16, marginBottom: 22 }}>
-      <Row justify="space-between" style={{ marginBottom: 12 }}>
-        <Txt size={15} weight="bold">
-          {t('Your Shipment', 'شحنتك')}
-        </Txt>
-        <ModeBadge
-          label={statusLabel(active.status, t)}
-          mode={inTransit ? active.mode || 'sea' : undefined}
-          soft={!inTransit}
-          bg={inTransit ? undefined : 'rgba(0,180,196,0.1)'}
-          color={inTransit ? undefined : colors.brandTeal}
-        />
-      </Row>
-      <Row gap={14}>
-        <Avatar icon="box" size={46} rounded={12} bg={colors.surfaceMuted} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Txt size={15} weight="bold" numberOfLines={1}>
-            {active.item || t('Shipment', 'شحنة')}
+    <Pressable onPress={open}>
+      <Card style={{ padding: 16, marginBottom: 22 }}>
+        <Row justify="space-between" style={{ marginBottom: 12 }}>
+          <Txt size={15} weight="bold">
+            {t('Your Shipment', 'شحنتك')}
           </Txt>
-          <Row gap={7} style={{ marginTop: 2 }}>
-            <Txt size={13} weight="semibold" color={colors.textSecondary}>
-              {active.fromCity || '—'}
+          <ModeBadge
+            label={statusLabel(active.status, t)}
+            mode={inTransit ? active.mode || 'sea' : undefined}
+            soft={!inTransit}
+            bg={inTransit ? undefined : 'rgba(0,180,196,0.1)'}
+            color={inTransit ? undefined : colors.brandTeal}
+          />
+        </Row>
+        <Row gap={14}>
+          <Avatar icon="box" size={46} rounded={12} bg={colors.surfaceMuted} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt size={15} weight="bold" numberOfLines={1}>
+              {active.item || t('Shipment', 'شحنة')}
             </Txt>
-            <RouteArrow />
-            <Txt size={13} weight="semibold" color={colors.textSecondary}>
-              {active.toCity || '—'}
-            </Txt>
-          </Row>
-        </View>
-        <Button label={t('TRACK', 'تتبع')} variant="ghost" size="sm" full={false} onPress={() => nav.push('TrackDetail', { shipmentId: active.id })} />
-      </Row>
-    </Card>
+            <Row gap={7} style={{ marginTop: 2 }}>
+              <Txt size={13} weight="semibold" color={colors.textSecondary} numberOfLines={1} style={{ flexShrink: 1 }}>
+                {active.fromCity || '—'}
+              </Txt>
+              <RouteArrow />
+              <Txt size={13} weight="semibold" color={colors.textSecondary} numberOfLines={1} style={{ flexShrink: 1 }}>
+                {active.toCity || '—'}
+              </Txt>
+            </Row>
+          </View>
+          <Button label={t('TRACK', 'تتبع')} variant="ghost" size="sm" full={false} onPress={open} />
+        </Row>
+      </Card>
+    </Pressable>
   );
 }
 
