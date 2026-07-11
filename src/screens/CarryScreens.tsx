@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth';
 import { firestore } from '../lib/firebase';
 import { useShipments, statusLabel, Shipment } from '../lib/shipments';
 import { useOpenShipments, submitCarrierOffer } from '../lib/market';
+import { releaseEscrow } from '../lib/payments';
 import {
   Screen, Body, Row, Txt, Card, Button, Badge, ModeBadge, Rating, Avatar, Chip, BottomNav, AppBar, LangToggle, Seg, MapRoute, Att, RouteArrow, IconButton, Field,
 } from '../components/ui';
@@ -579,6 +580,12 @@ export function TrackDetail({ shipmentId }: { shipmentId?: string }) {
   const nav = useNav();
   const { getById } = useShipments();
   const s = shipmentId ? getById(shipmentId) : undefined;
+  const [releasing, setReleasing] = useState(false);
+  const confirmDelivery = async () => {
+    if (!shipmentId || !s?.payment || s.payment.status !== 'held' || releasing) return;
+    setReleasing(true);
+    try { await releaseEscrow(shipmentId, s.payment); } finally { setReleasing(false); }
+  };
 
   // Geocode the shipment's cities → real map route. (Hooks must run before any return.)
   const [coords, setCoords] = useState<{ from?: LatLng | null; to?: LatLng | null }>({});
@@ -621,12 +628,13 @@ export function TrackDetail({ shipmentId }: { shipmentId?: string }) {
   const from = s?.fromCity || '—';
   const to = s?.toCity || '—';
   const transitLabel = mode === 'sea' ? t('At sea', 'في البحر') : mode === 'air' ? t('In the air', 'في الجو') : t('On the road', 'على الطريق');
+  const delivered = s?.status === 'delivered';
   const steps: [string, string, true | 'now' | false][] = [
     [t('Order placed', 'تم الطلب'), from, true],
     [t('Picked up', 'تم الاستلام'), from, true],
-    [t('In transit', 'قيد النقل'), transitLabel, 'now'],
-    [t('Out for delivery', 'خرجت للتسليم'), to, false],
-    [t('Delivered', 'تم التسليم'), to, false],
+    [t('In transit', 'قيد النقل'), transitLabel, delivered ? true : 'now'],
+    [t('Out for delivery', 'خرجت للتسليم'), to, delivered],
+    [t('Delivered', 'تم التسليم'), to, delivered ? true : false],
   ];
   return (
     <Screen>
@@ -656,6 +664,45 @@ export function TrackDetail({ shipmentId }: { shipmentId?: string }) {
             <ModeBadge mode={mode} label={mode === 'sea' ? t('Sea', 'بحر') : mode === 'air' ? t('Air', 'جو') : t('Road', 'بر')} />
           </Row>
         </Card>
+        {s.payment && (
+          <Card style={{ padding: 15, marginBottom: 18 }}>
+            <Row justify="space-between" style={{ marginBottom: s.payment.status === 'held' ? 12 : 0 }}>
+              <Row gap={9}>
+                <Icon name="lock" size={18} color={s.payment.status === 'released' ? colors.success : colors.brandTeal} sw={2} />
+                <View>
+                  <Txt size={14} weight="bold">
+                    {s.payment.status === 'released'
+                      ? t('Payment released', 'تم تحرير الدفع')
+                      : s.payment.status === 'refunded'
+                      ? t('Payment refunded', 'تم رد الدفع')
+                      : t('Held in escrow', 'محفوظ في الضمان')}
+                  </Txt>
+                  <Txt size={12.5} weight="semibold" color={colors.textSecondary}>
+                    {s.payment.status === 'released'
+                      ? t('Released to the carrier on delivery.', 'حُرِّر للناقل عند التسليم.')
+                      : t('Released to the carrier once you confirm delivery.', 'يُحرَّر للناقل بمجرد تأكيدك التسليم.')}
+                  </Txt>
+                </View>
+              </Row>
+              <Row gap={3} align="baseline">
+                <Txt size={17} weight="extrabold" tabular>
+                  {s.payment.amountKwd.toFixed(3)}
+                </Txt>
+                <Txt size={11} weight="bold" color={colors.textTertiary}>
+                  KWD
+                </Txt>
+              </Row>
+            </Row>
+            {s.payment.status === 'held' && (
+              <Button
+                label={releasing ? t('Releasing…', 'جارٍ التحرير…') : t('Confirm delivery & release payment', 'تأكيد التسليم وتحرير الدفع')}
+                variant="carry"
+                onPress={confirmDelivery}
+                disabled={releasing}
+              />
+            )}
+          </Card>
+        )}
         <View>
           {steps.map(([title, sub, st], i) => {
             const last = i === steps.length - 1;

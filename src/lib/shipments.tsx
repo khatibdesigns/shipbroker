@@ -3,6 +3,7 @@ import { collection, addDoc, onSnapshot, query, where, doc, updateDoc } from 'fi
 import { firestore } from './firebase';
 import { useAuth } from './auth';
 import { ShipmentDraft, ShipMode } from './ai';
+import { Payment } from './payments';
 
 // Shipments live top-level at shipments/{id} with a senderId, so carriers can
 // discover open ones and bid (bids live at shipments/{id}/offers). The sender's
@@ -22,6 +23,7 @@ export type Shipment = ShipmentDraft & {
   priceKWD?: string;
   eta?: string;
   photoUri?: string;
+  payment?: Payment;
 };
 
 type ShipmentsState = {
