@@ -27,5 +27,30 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null;
     }
+
+    // Marketplace: shipments are owned by their sender but readable by any
+    // signed-in user, so carriers can discover open ones and bid.
+    match /shipments/{sid} {
+      function isOwner() {
+        return request.auth != null && resource.data.senderId == request.auth.uid;
+      }
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if isOwner();
+
+      // Bids on a shipment. A carrier writes their own bid (carrierId == uid);
+      // the shipment owner may also seed instant quotes and accept/decline bids.
+      match /offers/{oid} {
+        function shipmentOwner() {
+          return request.auth != null
+            && get(/databases/$(database)/documents/shipments/$(sid)).data.senderId == request.auth.uid;
+        }
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && (request.resource.data.carrierId == request.auth.uid || shipmentOwner());
+        allow update, delete: if request.auth != null
+          && (resource.data.carrierId == request.auth.uid || shipmentOwner());
+      }
+    }
   }
 }

@@ -7,6 +7,7 @@ import { useNav } from '../lib/nav';
 import { useAuth } from '../lib/auth';
 import { firestore } from '../lib/firebase';
 import { useShipments, statusLabel, Shipment } from '../lib/shipments';
+import { useOpenShipments, submitCarrierOffer } from '../lib/market';
 import {
   Screen, Body, Row, Txt, Card, Button, Badge, ModeBadge, Rating, Avatar, Chip, BottomNav, AppBar, LangToggle, Seg, MapRoute, Att, RouteArrow, IconButton, Field,
 } from '../components/ui';
@@ -24,10 +25,19 @@ function pkgIcon(cat: string): IconName {
   return 'box';
 }
 
+function weightFilter(filter: string, weightKg?: number | null, urgent?: boolean): boolean {
+  if (filter === 'urgent') return !!urgent;
+  if (filter === 'light') return (weightKg ?? 0) <= 30;
+  if (filter === 'heavy') return (weightKg ?? 0) > 30;
+  return true;
+}
+
 export function AvailablePackages() {
   const { t } = useI18n();
   const nav = useNav();
+  const { uid } = useAuth();
   const { packages } = useCatalog();
+  const { open, loading } = useOpenShipments(uid);
   const [filter, setFilter] = useState('all');
   const filters = [
     { key: 'all', label: t('All', 'الكل') },
@@ -35,12 +45,12 @@ export function AvailablePackages() {
     { key: 'light', label: t('Light', 'خفيف') },
     { key: 'heavy', label: t('Heavy', 'ثقيل') },
   ];
-  const shownPackages = packages.filter((p) => {
-    if (filter === 'urgent') return !!p.urgent;
-    if (filter === 'light') return (p.weightKg ?? 0) <= 30;
-    if (filter === 'heavy') return (p.weightKg ?? 0) > 30;
-    return true;
-  });
+  // Real open shipments first; fall back to the seeded catalog when there are none
+  // so the feed is never empty for a solo tester.
+  const useReal = open.length > 0;
+  const shownReal = open.filter((s) => weightFilter(filter, s.weightKg, /asap/i.test(s.timing || '')));
+  const shownPackages = packages.filter((p) => weightFilter(filter, p.weightKg, p.urgent));
+  const empty = useReal ? shownReal.length === 0 : shownPackages.length === 0;
   return (
     <Screen>
       <Row gap={12} style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 }}>
@@ -56,14 +66,29 @@ export function AvailablePackages() {
         ))}
       </Row>
       <Body>
-        {packages.length === 0 ? (
+        {loading && !packages.length ? (
           <Txt size={14} color={colors.textSecondary} align="center" style={{ marginTop: 40 }}>
             {t('Loading packages…', 'جارٍ تحميل الطرود…')}
           </Txt>
-        ) : shownPackages.length === 0 ? (
+        ) : empty ? (
           <Txt size={14} color={colors.textSecondary} align="center" style={{ marginTop: 40 }}>
             {t('No packages match this filter.', 'لا توجد طرود مطابقة لهذا التصفية.')}
           </Txt>
+        ) : useReal ? (
+          shownReal.map((s) => (
+            <PackageCard
+              key={s.id}
+              icon={pkgIcon(s.category || '')}
+              item={s.item || t('Shipment', 'شحنة')}
+              from={s.fromCity || '—'}
+              to={s.toCity || '—'}
+              weight={s.weightKg != null ? `${s.weightKg} kg` : '—'}
+              fit={s.size || ''}
+              eta={s.timing || ''}
+              urgent={/asap/i.test(s.timing || '')}
+              onPress={() => nav.push('PackageDetail', { shipment: s })}
+            />
+          ))
         ) : (
           shownPackages.map((p) => (
             <PackageCard
@@ -277,45 +302,56 @@ export function Carriers() {
   );
 }
 
-export function PackageDetail({ id }: { id?: string }) {
+export function PackageDetail({ id, shipment }: { id?: string; shipment?: Shipment }) {
   const { t } = useI18n();
   const { getPackage } = useCatalog();
   const [offerOpen, setOfferOpen] = useState(false);
   const p = id ? getPackage(id) : undefined;
+  // Prefer a real open shipment; fall back to a seeded catalog package.
+  const s = shipment;
+  const category = s?.category || p?.category || '';
+  const item = s?.item || p?.item || t('Package', 'طرد');
+  const from = s?.fromCity || p?.fromCity || '—';
+  const to = s?.toCity || p?.toCity || '—';
+  const etaLabel = s?.timing || p?.eta || '—';
+  const weight = s?.weightKg != null ? `${s.weightKg} kg` : p ? `${p.weightKg} kg` : '—';
+  const fit = s?.size || p?.fit || '—';
+  const value = p?.value || '—';
+  const senderName = p?.senderName || t('A ShipBroker sender', 'مرسِل عبر شيب بروكر');
   return (
     <Screen>
       <AppBar title={t('Package details', 'تفاصيل الطرد')} />
       <Body>
         <View style={{ height: 150, borderRadius: 16, backgroundColor: '#e7ebef', alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
-          <Icon name={pkgIcon(p?.category || '')} size={40} color={colors.textTertiary} />
+          <Icon name={pkgIcon(category)} size={40} color={colors.textTertiary} />
         </View>
         <Row justify="space-between" style={{ marginBottom: 4 }}>
           <Txt size={19} weight="extrabold" numberOfLines={1} style={{ flex: 1 }}>
-            {p?.item || t('Package', 'طرد')}
+            {item}
           </Txt>
-          <ModeBadge label={p?.eta || '—'} small bg="rgba(0,180,196,0.1)" color={colors.brandTeal} />
+          <ModeBadge label={etaLabel} small bg="rgba(0,180,196,0.1)" color={colors.brandTeal} />
         </Row>
         <Row gap={7} style={{ marginBottom: 16 }}>
           <Txt size={14} weight="semibold" color={colors.textSecondary}>
-            {p?.fromCity || '—'}
+            {from}
           </Txt>
           <RouteArrow size={15} />
           <Txt size={14} weight="semibold" color={colors.textSecondary}>
-            {p?.toCity || '—'}
+            {to}
           </Txt>
         </Row>
         <Card style={{ padding: 15, marginBottom: 14 }}>
           <Row gap={10}>
-            <Att label={t('Weight', 'الوزن')} val={p ? `${p.weightKg} kg` : '—'} />
-            <Att label={t('Fit', 'الحجم')} val={p?.fit || '—'} />
-            <Att label={t('Value', 'القيمة')} val={p?.value || '—'} />
+            <Att label={t('Weight', 'الوزن')} val={weight} />
+            <Att label={t('Fit', 'الحجم')} val={fit} />
+            <Att label={t('Value', 'القيمة')} val={value} />
           </Row>
         </Card>
         <Card style={{ padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 11 }}>
-          <Avatar initials={p?.senderInitials || '—'} size={40} />
+          <Avatar initials={p?.senderInitials || 'SB'} size={40} />
           <View style={{ flex: 1 }}>
             <Txt size={14} weight="bold">
-              {p?.senderName || t('Sender', 'المرسِل')}
+              {senderName}
             </Txt>
             {p && <Rating value={p.senderRating.toFixed(1)} count={String(p.senderReviews)} size={12} />}
           </View>
@@ -324,17 +360,18 @@ export function PackageDetail({ id }: { id?: string }) {
         {/* Messaging the sender unlocks after you make an offer. */}
         <Button label={t('Make an offer', 'قدّم عرضاً')} variant="carry" onPress={() => setOfferOpen(true)} />
       </Body>
-      <MakeOfferSheet visible={offerOpen} onClose={() => setOfferOpen(false)} pkg={p} />
+      <MakeOfferSheet visible={offerOpen} onClose={() => setOfferOpen(false)} pkg={p} shipment={s} />
     </Screen>
   );
 }
 
-// Bottom-sheet a carrier uses to bid on a package: price (KWD), ETA, optional
-// note. The bid is persisted under the carrier's own user doc (owner-locked in
-// firestore.rules) so it survives and can surface to the sender later.
-function MakeOfferSheet({ visible, onClose, pkg }: { visible: boolean; onClose: () => void; pkg?: AvailablePackage }) {
+// Bottom-sheet a carrier uses to bid on an open shipment: price (KWD), ETA,
+// optional note. For a real shipment the bid is written to shipments/{id}/offers
+// (visible to the sender); for a seeded sample package it's kept under the
+// carrier's own doc.
+function MakeOfferSheet({ visible, onClose, pkg, shipment }: { visible: boolean; onClose: () => void; pkg?: AvailablePackage; shipment?: Shipment }) {
   const { t, isRTL } = useI18n();
-  const { uid } = useAuth();
+  const { uid, profile } = useAuth();
   const [price, setPrice] = useState('');
   const [eta, setEta] = useState('');
   const [note, setNote] = useState('');
@@ -348,19 +385,34 @@ function MakeOfferSheet({ visible, onClose, pkg }: { visible: boolean; onClose: 
   const close = () => { onClose(); setTimeout(reset, 200); };
 
   const priceNum = parseFloat(price.replace(/[^\d.]/g, ''));
-  const valid = !!pkg && price.trim().length > 0 && !isNaN(priceNum) && priceNum > 0 && eta.trim().length > 0;
+  const valid = (!!pkg || !!shipment) && price.trim().length > 0 && !isNaN(priceNum) && priceNum > 0 && eta.trim().length > 0;
 
   const submit = async () => {
     if (!valid || busy) return;
     setBusy(true); setError('');
     try {
-      if (firestore && uid) {
+      if (shipment && uid) {
+        // Real bid → visible to the sender on their Offers screen.
+        await submitCarrierOffer(shipment.id, {
+          carrierId: uid,
+          name: profile?.name?.trim() || t('A ShipBroker carrier', 'ناقل عبر شيب بروكر'),
+          initials: (profile?.name?.trim()?.[0] || 'C').toUpperCase(),
+          type: profile?.providerType ? 'company' : 'traveller',
+          rating: 5,
+          reviews: 0,
+          mode: (shipment.mode as any) || 'road',
+          price: priceNum.toFixed(3),
+          etaEn: eta.trim(),
+          etaAr: eta.trim(),
+          note: note.trim() || undefined,
+        });
+      } else if (pkg && firestore && uid) {
         await addDoc(collection(firestore, 'users', uid, 'sentOffers'), {
-          packageId: pkg!.id,
-          item: pkg!.item ?? null,
-          fromCity: pkg!.fromCity ?? null,
-          toCity: pkg!.toCity ?? null,
-          senderName: pkg!.senderName ?? null,
+          packageId: pkg.id,
+          item: pkg.item ?? null,
+          fromCity: pkg.fromCity ?? null,
+          toCity: pkg.toCity ?? null,
+          senderName: pkg.senderName ?? null,
           priceKwd: priceNum,
           eta: eta.trim(),
           note: note.trim() || null,
@@ -400,7 +452,7 @@ function MakeOfferSheet({ visible, onClose, pkg }: { visible: boolean; onClose: 
               {t('Make an offer', 'قدّم عرضاً')}
             </Txt>
             <Txt size={13} color={colors.textSecondary} align="center" style={{ marginBottom: 16 }}>
-              {pkg ? `${pkg.item} · ${pkg.fromCity} → ${pkg.toCity}` : ''}
+              {shipment ? `${shipment.item || t('Shipment', 'شحنة')} · ${shipment.fromCity || '—'} → ${shipment.toCity || '—'}` : pkg ? `${pkg.item} · ${pkg.fromCity} → ${pkg.toCity}` : ''}
             </Txt>
             <Field
               label={t('Your price (KWD)', 'سعرك (د.ك)')}

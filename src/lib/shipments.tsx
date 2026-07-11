@@ -1,18 +1,23 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firestore } from './firebase';
 import { useAuth } from './auth';
 import { ShipmentDraft, ShipMode } from './ai';
 
-// A user's shipments live at users/{uid}/shipments/{id}. Created by the AI agent
-// or the wizard; surfaced live in Home (tracker), Shipments tab, and the Offers header.
+// Shipments live top-level at shipments/{id} with a senderId, so carriers can
+// discover open ones and bid (bids live at shipments/{id}/offers). The sender's
+// own list is a senderId query; surfaced live in Home (tracker), Shipments tab,
+// and the Offers header. Owner-locked for writes in firestore.rules.
 export type ShipmentStatus = 'finding_offers' | 'booked' | 'in_transit' | 'delivered';
 
 export type Shipment = ShipmentDraft & {
   id: string;
+  senderId?: string;
   status: ShipmentStatus;
   createdAt: number;
   carrier?: string;
+  carrierId?: string;
+  acceptedOfferId?: string;
   orderId?: string;
   priceKWD?: string;
   eta?: string;
@@ -38,10 +43,15 @@ export function ShipmentsProvider({ children }: { children: React.ReactNode }) {
       setShipments([]);
       return;
     }
-    const q = query(collection(firestore, 'users', uid, 'shipments'), orderBy('createdAt', 'desc'));
+    // Query by senderId + sort client-side (avoids a composite index).
+    const q = query(collection(firestore, 'shipments'), where('senderId', '==', uid));
     const unsub = onSnapshot(
       q,
-      (snap) => setShipments(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Shipment[]),
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Shipment[];
+        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setShipments(list);
+      },
       () => setShipments([])
     );
     return unsub;
@@ -51,6 +61,7 @@ export function ShipmentsProvider({ children }: { children: React.ReactNode }) {
     async (draft: ShipmentDraft, extra?: Partial<Shipment>) => {
       if (!firestore || !uid) return null;
       const data = {
+        senderId: uid,
         item: draft.item ?? null,
         category: draft.category ?? null,
         fromCity: draft.fromCity ?? null,
@@ -65,7 +76,7 @@ export function ShipmentsProvider({ children }: { children: React.ReactNode }) {
         createdAt: Date.now(),
         ...extra,
       };
-      const ref = await addDoc(collection(firestore, 'users', uid, 'shipments'), data);
+      const ref = await addDoc(collection(firestore, 'shipments'), data);
       return ref.id;
     },
     [uid]
@@ -74,7 +85,7 @@ export function ShipmentsProvider({ children }: { children: React.ReactNode }) {
   const setStatus = useCallback(
     async (id: string, status: ShipmentStatus, extra?: Partial<Shipment>) => {
       if (!firestore || !uid) return;
-      await updateDoc(doc(firestore, 'users', uid, 'shipments', id), { status, ...(extra || {}) });
+      await updateDoc(doc(firestore, 'shipments', id), { status, ...(extra || {}) });
     },
     [uid]
   );

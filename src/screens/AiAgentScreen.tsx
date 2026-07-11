@@ -7,6 +7,7 @@ import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
 import { useShipments } from '../lib/shipments';
 import { useCatalog, buildOffers } from '../lib/catalog';
+import { seedOneOffer } from '../lib/market';
 import { ShipmentDraft } from '../lib/ai';
 import { useAiChat, UiMsg } from '../lib/aichat';
 import { Screen, Row, Txt, Bubble, Chip, Card, Avatar, Button, Skeleton, Att, IconButton, LangToggle, RouteArrow } from '../components/ui';
@@ -170,10 +171,12 @@ export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
     setFinding(true);
     const id = await create(d, tc ? { carrier: tc.name } : undefined);
     reset();
-    if (tc) {
+    if (tc && id) {
+      // Persist that carrier's quote as a real bid so it can be accepted.
       const offers = buildOffers(d, carriers);
       const offer = offers.find((o) => o.carrierId === tc.id) || offers[0];
-      setTimeout(() => nav.replace('OfferDetail', { shipmentId: id, offer }), 1800);
+      const mo = offer ? await seedOneOffer(id, offer, 'instant') : null;
+      setTimeout(() => nav.replace('OfferDetail', { shipmentId: id, offer: mo ?? undefined }), 1800);
     } else {
       setTimeout(() => nav.replace('Offers', { shipmentId: id, draft: d }), 1800);
     }

@@ -5,7 +5,8 @@ import { colors, gradients, radius, ModeKey } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
 import { useShipments } from '../lib/shipments';
-import { useCatalog, buildOffers, Offer } from '../lib/catalog';
+import { useCatalog, Offer } from '../lib/catalog';
+import { useShipmentOffers, seedInstantOffers, acceptOffer, MarketOffer } from '../lib/market';
 import { ShipmentDraft, askAboutOffer } from '../lib/ai';
 import {
   Screen, Body, Row, Txt, Card, Button, Badge, ModeBadge, Rating, Avatar, IconButton, BottomNav, AppBar, Sheet, RouteArrow, Hr,
@@ -177,7 +178,7 @@ type FilterKey = 'ai' | 'plh' | 'phl' | 'fast' | 'rate' | 'co' | 'tr';
 
 // Apply the chosen sort/filter to the generated offers. 'ai'/'co'/'tr' keep the
 // AI-Choice-first ordering from buildOffers; the rest re-sort the list.
-function applyFilter(offers: Offer[], key: FilterKey): Offer[] {
+function applyFilter<T extends Offer>(offers: T[], key: FilterKey): T[] {
   const price = (o: Offer) => parseFloat(o.price.replace(/,/g, '')) || 0;
   const speed = (o: Offer) => (o.mode === 'air' ? 1 : o.mode === 'road' ? 2 : 3);
   let r = offers.slice();
@@ -264,10 +265,24 @@ export function Offers({ shipmentId, draft }: { shipmentId?: string; draft?: Shi
 
   const [filter, setFilter] = React.useState<FilterKey>('ai');
   const [filterOpen, setFilterOpen] = React.useState(false);
-  const offers = sdraft ? applyFilter(buildOffers(sdraft, carriers), filter) : [];
 
-  const [ask, setAsk] = React.useState<{ offer: Offer; loading: boolean; text: string; err: string } | null>(null);
-  const openAsk = async (o: Offer) => {
+  // Real bids on this shipment (instant quotes + live carrier offers).
+  const { offers: rawOffers, loading: offersLoading } = useShipmentOffers(sid);
+  const offers = applyFilter(rawOffers, filter);
+
+  // Seed instant quotes once when a fresh shipment has no bids yet, so the
+  // sender sees real, selectable offers immediately.
+  const seededRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!sid || !sdraft || offersLoading) return;
+    if (rawOffers.length === 0 && carriers.length > 0 && seededRef.current !== sid) {
+      seededRef.current = sid;
+      seedInstantOffers(sid, sdraft, carriers).catch(() => { seededRef.current = null; });
+    }
+  }, [sid, sdraft, offersLoading, rawOffers.length, carriers.length]);
+
+  const [ask, setAsk] = React.useState<{ offer: MarketOffer; loading: boolean; text: string; err: string } | null>(null);
+  const openAsk = async (o: MarketOffer) => {
     setAsk({ offer: o, loading: true, text: '', err: '' });
     try {
       const text = await askAboutOffer({
@@ -275,9 +290,9 @@ export function Offers({ shipmentId, draft }: { shipmentId?: string; draft?: Shi
         offer: { name: o.name, mode: o.mode, price: o.price, eta: lang === 'ar' ? o.eta.ar : o.eta.en, rating: o.rating, type: o.type },
         lang,
       });
-      setAsk((a) => (a && a.offer.carrierId === o.carrierId ? { ...a, loading: false, text } : a));
+      setAsk((a) => (a && a.offer.id === o.id ? { ...a, loading: false, text } : a));
     } catch (e: any) {
-      setAsk((a) => (a && a.offer.carrierId === o.carrierId ? { ...a, loading: false, err: e?.message || 'Error' } : a));
+      setAsk((a) => (a && a.offer.id === o.id ? { ...a, loading: false, err: e?.message || 'Error' } : a));
     }
   };
 
@@ -328,7 +343,7 @@ export function Offers({ shipmentId, draft }: { shipmentId?: string; draft?: Shi
         </Row>
         {offers.map((o) => (
           <OfferCard
-            key={o.carrierId}
+            key={o.id}
             company={o.type === 'company'}
             initials={o.initials}
             name={o.name}
@@ -417,7 +432,7 @@ function serviceLabel(t: (en: string, ar?: string) => string, mode?: ModeKey) {
   return t('Road · FTL', 'بري · حمولة كاملة');
 }
 
-export function OfferDetail({ shipmentId, offer }: { shipmentId?: string; offer?: Offer }) {
+export function OfferDetail({ shipmentId, offer }: { shipmentId?: string; offer?: MarketOffer }) {
   const { t, lang } = useI18n();
   const nav = useNav();
   const { getById } = useShipments();
@@ -470,23 +485,17 @@ export function OfferDetail({ shipmentId, offer }: { shipmentId?: string; offer?
   );
 }
 
-export function Escrow({ shipmentId, offer }: { shipmentId?: string; offer?: Offer }) {
+export function Escrow({ shipmentId, offer }: { shipmentId?: string; offer?: MarketOffer }) {
   const { t, lang } = useI18n();
   const nav = useNav();
-  const { setStatus } = useShipments();
   const orderId = '#SB-' + (shipmentId ? shipmentId.slice(-5).toUpperCase() : '00000');
   const price = offer?.price || '—';
 
-  // Confirm the booking on the real shipment with the SELECTED offer's details.
+  // Accept the selected bid: mark it accepted, decline the rest, and move the
+  // shipment to in_transit with the winning carrier's terms (one atomic batch).
   React.useEffect(() => {
-    if (shipmentId && offer) {
-      setStatus(shipmentId, 'in_transit', {
-        carrier: offer.name,
-        mode: offer.mode,
-        priceKWD: offer.price,
-        eta: lang === 'ar' ? offer.eta.ar : offer.eta.en,
-        orderId,
-      });
+    if (shipmentId && offer?.id) {
+      acceptOffer(shipmentId, offer.id, offer, lang === 'ar' ? offer.eta.ar : offer.eta.en).catch(() => {});
     }
   }, [shipmentId]);
 
