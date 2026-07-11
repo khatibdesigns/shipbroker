@@ -18,6 +18,7 @@ import { colors, fonts, fontFor, radius, shadow, gradients, modeColor, ModeKey }
 import { useI18n } from '../lib/i18n';
 import { useNav, TabKey } from '../lib/nav';
 import { Icon, IconName, Star, StatusGlyphs } from './Icon';
+import { useReduceMotion } from './anim';
 
 /* ---------------- typography ---------------- */
 
@@ -521,6 +522,7 @@ export function Seg({
   style?: StyleProp<ViewStyle>;
 }) {
   const { isRTL } = useI18n();
+  const reduceMotion = useReduceMotion();
   const PAD = 4;
   const GAP = 4;
   const n = options.length;
@@ -531,8 +533,10 @@ export function Seg({
 
   React.useEffect(() => {
     if (cell <= 0) return;
-    Animated.spring(x, { toValue: idx * (cell + GAP), useNativeDriver: true, friction: 11, tension: 90 }).start();
-  }, [idx, cell]);
+    const to = idx * (cell + GAP);
+    if (reduceMotion) { x.setValue(to); return; } // no sliding thumb
+    Animated.spring(x, { toValue: to, useNativeDriver: true, friction: 11, tension: 90 }).start();
+  }, [idx, cell, reduceMotion]);
 
   return (
     <View
@@ -999,8 +1003,10 @@ export function Bubble({ from, children }: { from: 'bot' | 'me'; children: React
 /* ---------------- skeleton shimmer ---------------- */
 
 export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
+  const reduceMotion = useReduceMotion();
   const op = React.useRef(new Animated.Value(0.5)).current;
   React.useEffect(() => {
+    if (reduceMotion) { op.setValue(0.8); return; } // static placeholder, no pulsing
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(op, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -1009,7 +1015,7 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [op]);
+  }, [op, reduceMotion]);
   return <Animated.View style={[{ backgroundColor: '#e3e8ed', borderRadius: 10, opacity: op }, style]} />;
 }
 

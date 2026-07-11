@@ -1,7 +1,20 @@
-import React, { useRef, useEffect } from 'react';
-import { Animated, Easing, StyleProp, ViewStyle, View, PanResponder, Dimensions } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { Animated, Easing, StyleProp, ViewStyle, View, PanResponder, Dimensions, AccessibilityInfo } from 'react-native';
 import { useI18n } from '../lib/i18n';
 import { NavAction } from '../lib/nav';
+
+// Tracks the OS "Reduce Motion" accessibility setting (live). Components use it
+// to skip translate/scale animations for users who are motion-sensitive.
+export function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (mounted) setReduce(!!v); });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => setReduce(!!v));
+    return () => { mounted = false; sub?.remove?.(); };
+  }, []);
+  return reduce;
+}
 
 // Edge swipe-to-go-back. Left edge in LTR, right edge in RTL → calls onBack.
 export function EdgeBack({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
@@ -35,9 +48,14 @@ export function EdgeBack({ enabled, onBack, children }: { enabled: boolean; onBa
 // so each navigation remounts + animates; direction follows the nav action.
 export function ScreenTransition({ action, children }: { action: NavAction; children: React.ReactNode }) {
   const { isRTL } = useI18n();
+  const reduceMotion = useReduceMotion();
   const p = useRef(new Animated.Value(0)).current; // 0 → 1 progress
 
   useEffect(() => {
+    if (reduceMotion) {
+      p.setValue(1); // no movement — snap to final state
+      return;
+    }
     const anim = Animated.timing(p, {
       toValue: 1,
       duration: action === 'tab' || action === 'replace' ? 240 : 300,
@@ -46,10 +64,12 @@ export function ScreenTransition({ action, children }: { action: NavAction; chil
     });
     anim.start();
     return () => anim.stop();
-  }, []);
+  }, [reduceMotion]);
 
   const transform: any[] = [];
-  if (action === 'push') {
+  if (reduceMotion) {
+    // Motion-sensitive users: no slide/scale, just render in place.
+  } else if (action === 'push') {
     const from = isRTL ? -34 : 34;
     transform.push({ translateX: p.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) });
   } else if (action === 'pop') {
@@ -78,14 +98,19 @@ export function Fade({
   delay?: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const reduceMotion = useReduceMotion();
   const p = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reduceMotion) {
+      p.setValue(1);
+      return;
+    }
     const a = Animated.timing(p, { toValue: 1, duration, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     a.start();
     return () => a.stop();
-  }, []);
+  }, [reduceMotion]);
   return (
-    <Animated.View style={[{ opacity: p, transform: [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [dy, 0] }) }] }, style]}>
+    <Animated.View style={[{ opacity: p, transform: reduceMotion ? [] : [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [dy, 0] }) }] }, style]}>
       {children}
     </Animated.View>
   );
