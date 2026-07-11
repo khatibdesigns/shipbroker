@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, TextInput, Pressable, Image } from 'react-native';
 import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
-import { colors, radius, fonts } from '../lib/theme';
+import { colors, radius, fonts, fontFor } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { Icon, IconName } from './Icon';
 import { Txt, Field, MapRoute } from './ui';
@@ -84,7 +84,7 @@ export function PlaceField({
           onFocus={() => setFocused(true)}
           placeholder={ph}
           placeholderTextColor={colors.textTertiary}
-          style={{ flex: 1, fontFamily: fonts.medium, fontSize: 15, color: colors.textPrimary, textAlign: isRTL ? 'right' : 'left', paddingVertical: 12 }}
+          style={{ flex: 1, fontFamily: fontFor(fonts.medium, isRTL), fontSize: 15, color: colors.textPrimary, textAlign: isRTL ? 'right' : 'left', paddingVertical: 12 }}
         />
       </View>
       {focused && preds.length > 0 && (

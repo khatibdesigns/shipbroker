@@ -4,6 +4,9 @@
 export const colors = {
   brandMint: '#00D9A3',
   brandTeal: '#00B4C4',
+  // Dark teal ink for labels on the bright mint/teal & green gradients — white
+  // text on those fails WCAG contrast; this deep ink passes AA (≥4.5:1).
+  brandInk: '#06342C',
 
   bg: '#FFFFFF',
   surface: '#FFFFFF',

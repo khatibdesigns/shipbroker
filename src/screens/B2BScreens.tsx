@@ -355,75 +355,100 @@ export function WizardStep1() {
 export function ServicesGrid() {
   const { t } = useI18n();
   const nav = useNav();
-  const [filter, setFilter] = useState('all');
-  const [selected, setSelected] = useState('air');
-  const items: { k: string; icon: IconName; label: string; sub: string }[] = [
-    { k: 'air', icon: 'plane', label: t('Air Freight', 'شحن جوي'), sub: t('Docs & Goods', 'مستندات وبضائع') },
-    { k: 'sea', icon: 'ship', label: t('Sea Freight', 'شحن بحري'), sub: 'FCL / LCL' },
-    { k: 'road', icon: 'truck', label: t('Road Freight', 'شحن بري'), sub: t('Trucking', 'شاحنات') },
-    { k: 'winch', icon: 'car', label: t('Winch', 'ونش'), sub: t('Tow services', 'خدمات السحب') },
-    { k: 'ware', icon: 'ware', label: t('Warehousing', 'تخزين'), sub: t('Storage', 'تخزين') },
-    { k: 'vehicles', icon: 'boat', label: t('Vehicles & Leisure', 'مركبات وترفيه'), sub: t('Cars + Boats', 'سيارات وقوارب') },
-    { k: 'ff', icon: 'doc', label: t('Freight Fwd.', 'وسيط شحن'), sub: t('Broker', 'وسيط') },
-    { k: 'marine', icon: 'user', label: t('Marine Captain', 'ربّان بحري'), sub: t('Certified', 'معتمد') },
+  const [filter, setFilter] = useState<'all' | ShipMode>('all');
+  const [query, setQuery] = useState('');
+  const items: { k: string; icon: IconName; label: string; sub: string; mode: ShipMode }[] = [
+    { k: 'air', icon: 'plane', label: t('Air Freight', 'شحن جوي'), sub: t('Docs & Goods', 'مستندات وبضائع'), mode: 'air' },
+    { k: 'sea', icon: 'ship', label: t('Sea Freight', 'شحن بحري'), sub: 'FCL / LCL', mode: 'sea' },
+    { k: 'road', icon: 'truck', label: t('Road Freight', 'شحن بري'), sub: t('Trucking', 'شاحنات'), mode: 'road' },
+    { k: 'winch', icon: 'car', label: t('Winch', 'ونش'), sub: t('Tow services', 'خدمات السحب'), mode: 'road' },
+    { k: 'ware', icon: 'ware', label: t('Warehousing', 'تخزين'), sub: t('Storage', 'تخزين'), mode: 'road' },
+    { k: 'vehicles', icon: 'boat', label: t('Vehicles & Leisure', 'مركبات وترفيه'), sub: t('Cars + Boats', 'سيارات وقوارب'), mode: 'sea' },
+    { k: 'ff', icon: 'doc', label: t('Freight Fwd.', 'وسيط شحن'), sub: t('Broker', 'وسيط'), mode: 'sea' },
+    { k: 'marine', icon: 'user', label: t('Marine Captain', 'ربّان بحري'), sub: t('Certified', 'معتمد'), mode: 'sea' },
   ];
-  const filters = [
+  const filters: { key: 'all' | ShipMode; label: string }[] = [
     { key: 'all', label: t('All', 'الكل') },
-    { key: 'air', label: 'Air' },
-    { key: 'sea', label: 'Sea' },
-    { key: 'road', label: 'Road' },
+    { key: 'air', label: t('Air', 'جو') },
+    { key: 'sea', label: t('Sea', 'بحر') },
+    { key: 'road', label: t('Road', 'بر') },
   ];
+  const q = query.trim().toLowerCase();
+  const shown = items.filter(
+    (it) => (filter === 'all' || it.mode === filter) && (!q || it.label.toLowerCase().includes(q) || it.sub.toLowerCase().includes(q))
+  );
   return (
     <Screen>
       <AppBar title={t('Services', 'الخدمات')} />
       <Body>
-        <Field ph={t('Search services…', 'ابحث في الخدمات…')} icon="search" />
+        <Field ph={t('Search services…', 'ابحث في الخدمات…')} icon="search" value={query} onChangeText={setQuery} />
         <Row gap={8} style={{ marginBottom: 16 }}>
           {filters.map((f) => (
             <Chip key={f.key} label={f.label} on={filter === f.key} onPress={() => setFilter(f.key)} />
           ))}
         </Row>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
-          {items.map((it) => {
-            const on = selected === it.k;
-            return (
+        {shown.length === 0 ? (
+          <Card muted style={{ padding: 22, alignItems: 'center' }}>
+            <Txt size={13.5} weight="semibold" color={colors.textSecondary} align="center">
+              {t('No services match your filter.', 'لا توجد خدمات مطابقة للتصفية.')}
+            </Txt>
+          </Card>
+        ) : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
+            {shown.map((it) => (
               <Card key={it.k} flat style={{ width: '47.5%', padding: 14 }}>
-                <Row justify="space-between" style={{ marginBottom: 12 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name={it.icon} size={21} color={colors.brandTeal} />
-                  </View>
-                  <Pressable onPress={() => setSelected(it.k)} style={{ width: 20, height: 20, borderRadius: 10, borderWidth: on ? 0 : 2, borderColor: colors.border, backgroundColor: on ? colors.brandTeal : '#fff', alignItems: 'center', justifyContent: 'center' }}>
-                    {on && <Icon name="check" size={12} color="#fff" sw={2.6} />}
-                  </Pressable>
-                </Row>
+                <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <Icon name={it.icon} size={21} color={colors.brandTeal} />
+                </View>
                 <Txt size={14.5} weight="bold">
                   {it.label}
                 </Txt>
                 <Txt size={12} weight="semibold" color={colors.textSecondary} style={{ marginBottom: 12 }}>
                   {it.sub}
                 </Txt>
-                <Button label={t('Request', 'طلب')} variant="ghost" size="sm" onPress={() => nav.push('QuickRFQ')} />
+                <Button label={t('Request', 'طلب')} variant="ghost" size="sm" onPress={() => nav.push('QuickRFQ', { service: it.k })} />
               </Card>
-            );
-          })}
-        </View>
+            ))}
+          </View>
+        )}
       </Body>
       <BottomNav />
     </Screen>
   );
 }
 
-export function QuickRFQ() {
+export function QuickRFQ({ service }: { service?: string }) {
   const { t } = useI18n();
   const nav = useNav();
   const rfq = useRfq();
   const [type, setType] = useState('docs');
+  const [weight, setWeight] = useState('');
+  const [destination, setDestination] = useState('');
+  const [readyDate, setReadyDate] = useState('');
+  // Map the tapped service card onto the RFQ item; fall back to Air.
+  const SERVICES: Record<string, { icon: IconName; label: string; mode: ShipMode }> = {
+    air: { icon: 'plane', label: t('Air Freight', 'شحن جوي'), mode: 'air' },
+    sea: { icon: 'ship', label: t('Sea Freight', 'شحن بحري'), mode: 'sea' },
+    road: { icon: 'truck', label: t('Road Freight', 'شحن بري'), mode: 'road' },
+    winch: { icon: 'car', label: t('Winch', 'ونش'), mode: 'road' },
+    ware: { icon: 'ware', label: t('Warehousing', 'تخزين'), mode: 'road' },
+    vehicles: { icon: 'boat', label: t('Vehicles & Leisure', 'مركبات وترفيه'), mode: 'sea' },
+    ff: { icon: 'doc', label: t('Freight Fwd.', 'وسيط شحن'), mode: 'sea' },
+    marine: { icon: 'user', label: t('Marine Captain', 'ربّان بحري'), mode: 'sea' },
+  };
+  const svc = (service && SERVICES[service]) || SERVICES.air;
   const sendRequest = () => {
+    const detail = [
+      type === 'goods' ? t('Goods', 'بضائع') : t('Documents', 'مستندات'),
+      weight.trim() && `${weight.trim()} kg`,
+      destination.trim(),
+      readyDate.trim(),
+    ].filter(Boolean).join(' · ');
     rfq.add({
-      icon: 'plane',
-      label: t('Air Freight', 'شحن جوي'),
-      sub: type === 'goods' ? t('Goods', 'بضائع') : t('Documents', 'مستندات'),
-      mode: 'air',
+      icon: svc.icon,
+      label: svc.label,
+      sub: detail,
+      mode: svc.mode,
     });
     nav.pop();
     nav.push('RFQCart');
@@ -441,7 +466,7 @@ export function QuickRFQ() {
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20,24,31,0.35)' }} />
       <Sheet>
         <Txt size={18} weight="extrabold" align="center" style={{ marginBottom: 18 }}>
-          {t('Quick RFQ — Air Freight', 'طلب سريع — شحن جوي')}
+          {t('Quick RFQ — ', 'طلب سريع — ')}{svc.label}
         </Txt>
         <View style={{ marginBottom: 16 }}>
           <Txt size={13} weight="semibold" color={colors.textSecondary} style={{ marginBottom: 7, marginHorizontal: 2 }}>
@@ -451,13 +476,13 @@ export function QuickRFQ() {
         </View>
         <Row gap={12}>
           <View style={{ flex: 1 }}>
-            <Field label={t('Weight (kg)', 'الوزن (كجم)')} ph="e.g. 12.5" />
+            <Field label={t('Weight (kg)', 'الوزن (كجم)')} ph="e.g. 12.5" value={weight} onChangeText={setWeight} keyboardType="numeric" />
           </View>
           <View style={{ flex: 1 }}>
-            <Field label={t('Destination country', 'دولة الوجهة')} ph={t('Select…', 'اختر…')} select />
+            <Field label={t('Destination country', 'دولة الوجهة')} ph={t('e.g. Saudi Arabia', 'مثال: السعودية')} value={destination} onChangeText={setDestination} />
           </View>
         </Row>
-        <Field label={t('Ready date', 'تاريخ الجاهزية')} ph={t('Pick a date', 'اختر التاريخ')} icon="clock" />
+        <Field label={t('Ready date', 'تاريخ الجاهزية')} ph={t('e.g. 15 Jul', 'مثال: 15 يوليو')} icon="clock" value={readyDate} onChangeText={setReadyDate} />
         <Button label={t('Send Request', 'إرسال الطلب')} size="lg" onPress={sendRequest} />
         <Link label={t('Advanced details', 'تفاصيل متقدمة')} style={{ marginTop: 10 }} onPress={() => { nav.pop(); nav.push('WizardStep1'); }} />
       </Sheet>

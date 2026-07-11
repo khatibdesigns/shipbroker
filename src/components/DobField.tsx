@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
-import { colors, fonts, radius } from '../lib/theme';
+import { colors, fonts, fontFor, radius } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { Icon } from './Icon';
 import { Txt, Row, Button } from './ui';
@@ -37,6 +37,7 @@ function Column({
   width: number;
   render?: (n: number) => string;
 }) {
+  const { isRTL } = useI18n();
   const ref = useRef<ScrollView>(null);
   const idx = Math.max(0, items.indexOf(selected));
 
@@ -66,7 +67,7 @@ function Column({
         const on = n === selected;
         return (
           <Pressable key={n} onPress={() => onEnd(items.indexOf(n) * ROW)} style={{ height: ROW, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: on ? fonts.bold : fonts.medium, fontSize: on ? 18 : 16, color: on ? colors.brandTeal : colors.textTertiary }}>
+            <Text style={{ fontFamily: fontFor(on ? fonts.bold : fonts.medium, isRTL), fontSize: on ? 18 : 16, color: on ? colors.brandTeal : colors.textTertiary }}>
               {render ? render(n) : String(n).padStart(2, '0')}
             </Text>
           </Pressable>

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Modal } from 'react-native';
+import { collection, addDoc } from 'firebase/firestore';
 import { colors } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
+import { useAuth } from '../lib/auth';
+import { firestore } from '../lib/firebase';
 import { useShipments, statusLabel, Shipment } from '../lib/shipments';
 import {
-  Screen, Body, Row, Txt, Card, Button, Badge, ModeBadge, Rating, Avatar, Chip, BottomNav, AppBar, LangToggle, Seg, MapRoute, Att, RouteArrow, IconButton,
+  Screen, Body, Row, Txt, Card, Button, Badge, ModeBadge, Rating, Avatar, Chip, BottomNav, AppBar, LangToggle, Seg, MapRoute, Att, RouteArrow, IconButton, Field,
 } from '../components/ui';
 import { Icon, IconName, Star } from '../components/Icon';
-import { useCatalog } from '../lib/catalog';
+import { useCatalog, AvailablePackage } from '../lib/catalog';
 import { RouteMap } from '../components/PlaceField';
 import { geocode, LatLng } from '../lib/places';
 import { PackageCard, CarrierRow } from './shared';
@@ -28,10 +31,16 @@ export function AvailablePackages() {
   const [filter, setFilter] = useState('all');
   const filters = [
     { key: 'all', label: t('All', 'الكل') },
-    { key: 'air', label: t('Air', 'جو') },
-    { key: 'road', label: t('Road', 'بر') },
-    { key: 'today', label: t('Today', 'اليوم') },
+    { key: 'urgent', label: t('Urgent', 'عاجل') },
+    { key: 'light', label: t('Light', 'خفيف') },
+    { key: 'heavy', label: t('Heavy', 'ثقيل') },
   ];
+  const shownPackages = packages.filter((p) => {
+    if (filter === 'urgent') return !!p.urgent;
+    if (filter === 'light') return (p.weightKg ?? 0) <= 30;
+    if (filter === 'heavy') return (p.weightKg ?? 0) > 30;
+    return true;
+  });
   return (
     <Screen>
       <Row gap={12} style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 }}>
@@ -51,8 +60,12 @@ export function AvailablePackages() {
           <Txt size={14} color={colors.textSecondary} align="center" style={{ marginTop: 40 }}>
             {t('Loading packages…', 'جارٍ تحميل الطرود…')}
           </Txt>
+        ) : shownPackages.length === 0 ? (
+          <Txt size={14} color={colors.textSecondary} align="center" style={{ marginTop: 40 }}>
+            {t('No packages match this filter.', 'لا توجد طرود مطابقة لهذا التصفية.')}
+          </Txt>
         ) : (
-          packages.map((p) => (
+          shownPackages.map((p) => (
             <PackageCard
               key={p.id}
               icon={pkgIcon(p.category)}
@@ -267,6 +280,7 @@ export function Carriers() {
 export function PackageDetail({ id }: { id?: string }) {
   const { t } = useI18n();
   const { getPackage } = useCatalog();
+  const [offerOpen, setOfferOpen] = useState(false);
   const p = id ? getPackage(id) : undefined;
   return (
     <Screen>
@@ -308,9 +322,122 @@ export function PackageDetail({ id }: { id?: string }) {
           <Badge label={t('Verified', 'موثّق')} icon="shield" />
         </Card>
         {/* Messaging the sender unlocks after you make an offer. */}
-        <Button label={t('Make an offer', 'قدّم عرضاً')} variant="carry" />
+        <Button label={t('Make an offer', 'قدّم عرضاً')} variant="carry" onPress={() => setOfferOpen(true)} />
       </Body>
+      <MakeOfferSheet visible={offerOpen} onClose={() => setOfferOpen(false)} pkg={p} />
     </Screen>
+  );
+}
+
+// Bottom-sheet a carrier uses to bid on a package: price (KWD), ETA, optional
+// note. The bid is persisted under the carrier's own user doc (owner-locked in
+// firestore.rules) so it survives and can surface to the sender later.
+function MakeOfferSheet({ visible, onClose, pkg }: { visible: boolean; onClose: () => void; pkg?: AvailablePackage }) {
+  const { t, isRTL } = useI18n();
+  const { uid } = useAuth();
+  const [price, setPrice] = useState('');
+  const [eta, setEta] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const reset = () => {
+    setPrice(''); setEta(''); setNote(''); setBusy(false); setSent(false); setError('');
+  };
+  const close = () => { onClose(); setTimeout(reset, 200); };
+
+  const priceNum = parseFloat(price.replace(/[^\d.]/g, ''));
+  const valid = !!pkg && price.trim().length > 0 && !isNaN(priceNum) && priceNum > 0 && eta.trim().length > 0;
+
+  const submit = async () => {
+    if (!valid || busy) return;
+    setBusy(true); setError('');
+    try {
+      if (firestore && uid) {
+        await addDoc(collection(firestore, 'users', uid, 'sentOffers'), {
+          packageId: pkg!.id,
+          item: pkg!.item ?? null,
+          fromCity: pkg!.fromCity ?? null,
+          toCity: pkg!.toCity ?? null,
+          senderName: pkg!.senderName ?? null,
+          priceKwd: priceNum,
+          eta: eta.trim(),
+          note: note.trim() || null,
+          status: 'pending',
+          createdAt: Date.now(),
+        });
+      }
+      setSent(true);
+    } catch (e: any) {
+      setError(t('Could not send your offer. Please try again.', 'تعذّر إرسال عرضك. حاول مرة أخرى.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(20,24,31,0.45)' }} onPress={close} />
+      <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28 }}>
+        <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: 'center', marginTop: 6, marginBottom: 16 }} />
+        {sent ? (
+          <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,200,150,0.14)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <Icon name="check" size={28} color={colors.success} sw={2.6} />
+            </View>
+            <Txt size={18} weight="bold" align="center" style={{ marginBottom: 6 }}>
+              {t('Offer sent', 'تم إرسال العرض')}
+            </Txt>
+            <Txt size={14} color={colors.textSecondary} align="center" style={{ marginBottom: 18 }}>
+              {t('The sender will be notified. You can message them once they accept.', 'سيتم إشعار المرسِل. يمكنك مراسلته بمجرد قبوله.')}
+            </Txt>
+            <Button label={t('Done', 'تم')} variant="carry" onPress={close} />
+          </View>
+        ) : (
+          <>
+            <Txt size={18} weight="bold" align="center" style={{ marginBottom: 4 }}>
+              {t('Make an offer', 'قدّم عرضاً')}
+            </Txt>
+            <Txt size={13} color={colors.textSecondary} align="center" style={{ marginBottom: 16 }}>
+              {pkg ? `${pkg.item} · ${pkg.fromCity} → ${pkg.toCity}` : ''}
+            </Txt>
+            <Field
+              label={t('Your price (KWD)', 'سعرك (د.ك)')}
+              ph={t('e.g. 45.000', 'مثال: 45.000')}
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="decimal-pad"
+            />
+            <Field
+              label={t('Delivery time', 'مدة التوصيل')}
+              ph={t('e.g. 3–5 days', 'مثال: ٣–٥ أيام')}
+              value={eta}
+              onChangeText={setEta}
+              icon="clock"
+            />
+            <Field
+              label={t('Message (optional)', 'رسالة (اختياري)')}
+              ph={t('Add a note to the sender…', 'أضف ملاحظة للمرسِل…')}
+              value={note}
+              onChangeText={setNote}
+              area
+            />
+            {!!error && (
+              <Txt size={13} color={colors.error} align="center" style={{ marginBottom: 10 }}>
+                {error}
+              </Txt>
+            )}
+            <Button
+              label={busy ? t('Sending…', 'جارٍ الإرسال…') : t('Send offer', 'إرسال العرض')}
+              variant="carry"
+              onPress={submit}
+              disabled={!valid || busy}
+            />
+          </>
+        )}
+      </View>
+    </Modal>
   );
 }
 

@@ -5,39 +5,6 @@ import { useI18n } from '../lib/i18n';
 import { Icon, IconName } from '../components/Icon';
 import { Card, Row, Txt, Avatar, ModeBadge, Button, Rating, RouteArrow } from '../components/ui';
 
-// Mini-tracker card (Home + variation). Tappable TRACK action.
-export function Tracker({ onTrack }: { onTrack?: () => void }) {
-  const { t } = useI18n();
-  return (
-    <Card style={{ padding: 16, marginBottom: 22 }}>
-      <Row justify="space-between" style={{ marginBottom: 12 }}>
-        <Txt size={15} weight="bold">
-          {t('Your Shipment', 'شحنتك')}
-        </Txt>
-        <ModeBadge mode="air" label={t('In Transit', 'قيد النقل')} bg={colors.modeRoad} />
-      </Row>
-      <Row gap={14}>
-        <Avatar icon="box" size={46} rounded={12} bg={colors.surfaceMuted} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Txt size={15} weight="bold">
-            iPhone 15 Pro
-          </Txt>
-          <Row gap={7} style={{ marginTop: 2 }}>
-            <Txt size={13} weight="semibold" color={colors.textSecondary}>
-              {t('Kuwait', 'الكويت')}
-            </Txt>
-            <RouteArrow />
-            <Txt size={13} weight="semibold" color={colors.textSecondary}>
-              {t('Berlin', 'برلين')}
-            </Txt>
-          </Row>
-        </View>
-        <Button label={t('TRACK', 'تتبع')} variant="ghost" size="sm" full={false} onPress={onTrack} />
-      </Row>
-    </Card>
-  );
-}
-
 export function CarrierRow({
   initials,
   name,

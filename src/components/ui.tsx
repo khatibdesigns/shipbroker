@@ -271,13 +271,16 @@ export function Button({
   disabled?: boolean;
   height?: number;
 }) {
+  const { isRTL } = useI18n();
   const h = height ?? (size === 'lg' ? 56 : size === 'sm' ? 38 : 52);
   const fontSize = size === 'lg' ? 16 : size === 'sm' ? 13 : 15;
 
   const isGradient = variant === 'brand' || variant === 'send' || variant === 'carry';
   const grad = variant === 'send' ? gradients.send : variant === 'carry' ? gradients.carry : gradients.brand;
 
-  let fg = textColor ?? '#fff';
+  // Bright mint/teal & green gradients need dark ink for WCAG-AA contrast;
+  // the dark indigo "send" gradient keeps white.
+  let fg = textColor ?? (variant === 'brand' || variant === 'carry' ? colors.brandInk : '#fff');
   let solidBg: string | undefined;
   if (variant === 'secondary') {
     solidBg = '#fff';
@@ -299,7 +302,7 @@ export function Button({
     height: h,
     borderRadius: radius.pill,
     overflow: 'hidden',
-    flexDirection: 'row',
+    flexDirection: isRTL ? 'row-reverse' : 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -311,7 +314,7 @@ export function Button({
   const content = (
     <>
       {icon && <Icon name={icon} size={fontSize + 3} sw={2} color={iconColor ?? fg} />}
-      <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize, color: fg, letterSpacing: 0.2 }}>
+      <Text numberOfLines={1} style={{ fontFamily: fontFor(fonts.bold, isRTL), fontSize, color: fg, letterSpacing: isRTL ? 0 : 0.2 }}>
         {label}
       </Text>
     </>
@@ -332,7 +335,13 @@ export function Button({
   ];
 
   return (
-    <Pressable onPress={disabled ? undefined : onPress} style={({ pressed }) => [{ transform: [{ translateY: pressed ? 1 : 0 }] }, shellStyle]}>
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => [{ transform: [{ translateY: pressed ? 1 : 0 }], opacity: pressed ? 0.92 : 1 }, shellStyle]}
+    >
       {isGradient ? (
         <LinearGradient colors={grad as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={fillStyle}>
           {content}
@@ -360,11 +369,18 @@ export function Link({
   style?: StyleProp<ViewStyle>;
   icon?: IconName;
 }) {
+  const { isRTL } = useI18n();
   const c = color ?? (brand ? colors.brandTeal : colors.textSecondary);
   return (
-    <Pressable onPress={onPress} hitSlop={8} style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 6, gap: 4 }, style]}>
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'center', padding: 6, gap: 4, opacity: pressed ? 0.6 : 1 }, style]}
+    >
       {icon && <Icon name={icon} size={14} sw={2.4} color={c} />}
-      <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c, textDecorationLine: 'underline' }}>{label}</Text>
+      <Text style={{ fontFamily: fontFor(fonts.semibold, isRTL), fontSize: 14, color: c, textDecorationLine: 'underline' }}>{label}</Text>
     </Pressable>
   );
 }
@@ -504,6 +520,7 @@ export function Seg({
   dark?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { isRTL } = useI18n();
   const PAD = 4;
   const GAP = 4;
   const n = options.length;
@@ -533,10 +550,17 @@ export function Seg({
         ))}
       {options.map((o) => {
         const active = o.key === value;
-        const color = active ? (brand ? '#fff' : dark ? colors.sendInk : colors.textPrimary) : dark ? '#fff' : colors.textSecondary;
+        const color = active ? (brand ? colors.brandInk : dark ? colors.sendInk : colors.textPrimary) : dark ? '#fff' : colors.textSecondary;
         return (
-          <Pressable key={o.key} onPress={() => onChange?.(o.key)} style={{ flex: 1, height: 42, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color }}>{o.label}</Text>
+          <Pressable
+            key={o.key}
+            onPress={() => onChange?.(o.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: active }}
+            style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ fontFamily: fontFor(fonts.semibold, isRTL), fontSize: 14, color }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -608,18 +632,23 @@ export function Chip({
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { isRTL } = useI18n();
   const padV = sm ? 6 : 9;
   const padH = sm ? 12 : 15;
-  const fg = on ? '#fff' : colors.textPrimary;
+  // Selected+brand chip sits on the bright gradient → dark ink; selected (dark fill) → white.
+  const fg = on ? (brand ? colors.brandInk : '#fff') : colors.textPrimary;
+  const a11y = onPress
+    ? { accessibilityRole: 'button' as const, accessibilityLabel: label, accessibilityState: { selected: !!on } }
+    : {};
   const content = (
     <Row gap={6} style={{ paddingVertical: padV, paddingHorizontal: padH }}>
       {icon && <Icon name={icon} size={sm ? 13 : 15} sw={2} color={fg} />}
-      <Text style={{ fontFamily: fonts.semibold, fontSize: sm ? 12.5 : 13.5, color: fg }}>{label}</Text>
+      <Text style={{ fontFamily: fontFor(fonts.semibold, isRTL), fontSize: sm ? 12.5 : 13.5, color: fg }}>{label}</Text>
     </Row>
   );
   if (on && brand) {
     return (
-      <Pressable onPress={onPress} style={[{ borderRadius: radius.pill, overflow: 'hidden' }, style]}>
+      <Pressable onPress={onPress} {...a11y} style={({ pressed }) => [{ borderRadius: radius.pill, overflow: 'hidden', opacity: pressed && onPress ? 0.85 : 1 }, style]}>
         <LinearGradient colors={gradients.brand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: radius.pill }}>
           {content}
         </LinearGradient>
@@ -629,12 +658,14 @@ export function Chip({
   return (
     <Pressable
       onPress={onPress}
-      style={[
+      {...a11y}
+      style={({ pressed }) => [
         {
           borderRadius: radius.pill,
           borderWidth: 1.5,
           borderColor: on ? colors.textPrimary : colors.border,
           backgroundColor: on ? colors.textPrimary : '#fff',
+          opacity: pressed && onPress ? 0.85 : 1,
         },
         style,
       ]}
@@ -665,13 +696,15 @@ export function ModeBadge({
   style?: StyleProp<ViewStyle>;
   small?: boolean;
 }) {
+  const { isRTL } = useI18n();
   const background = bg ?? (soft ? colors.surfaceMuted : mode ? modeColor[mode] : colors.surfaceMuted);
-  const fg = color ?? (soft ? colors.textSecondary : '#fff');
+  // Air (blue) reads with white; the bright amber/teal mode colors need dark ink for AA contrast.
+  const fg = color ?? (soft ? colors.textSecondary : mode && mode !== 'air' ? colors.brandInk : '#fff');
   return (
     <Row gap={5} style={[{ backgroundColor: background, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: small ? 7 : 10 }, style]}>
       {mode && <Icon name={modeIconName[mode]} size={12} sw={2.2} color={fg} />}
       {label && (
-        <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: fg, letterSpacing: 0.3, textTransform: 'uppercase' }}>{label}</Text>
+        <Text style={{ fontFamily: fontFor(fonts.bold, isRTL), fontSize: 11, color: fg, letterSpacing: isRTL ? 0 : 0.3, textTransform: isRTL ? 'none' : 'uppercase' }}>{label}</Text>
       )}
     </Row>
   );
@@ -736,12 +769,13 @@ export function Badge({
   color?: string;
   bg?: string;
 }) {
+  const { isRTL } = useI18n();
   const fg = color ?? (onDark ? '#fff' : '#00997a');
   const background = bg ?? (onDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,200,150,0.12)');
   return (
     <Row gap={6} style={[{ backgroundColor: background, borderRadius: radius.pill, paddingVertical: 6, paddingHorizontal: 12 }, style]}>
       {icon && <Icon name={icon} size={13} sw={2} color={fg} />}
-      <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: fg }}>{label}</Text>
+      <Text style={{ fontFamily: fontFor(fonts.bold, isRTL), fontSize: 12, color: fg }}>{label}</Text>
     </Row>
   );
 }
@@ -802,7 +836,7 @@ export function Hero({
 /* ---------------- bottom nav ---------------- */
 
 export function BottomNav() {
-  const { t } = useI18n();
+  const { t, isRTL } = useI18n();
   const nav = useNav();
   const insets = useSafeAreaInsets();
   const items: { key: TabKey; icon: IconName; label: string }[] = [
@@ -826,9 +860,16 @@ export function BottomNav() {
         const active = nav.tab === it.key;
         const c = active ? colors.brandTeal : colors.textTertiary;
         return (
-          <Pressable key={it.key} onPress={() => nav.selectTab(it.key)} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+          <Pressable
+            key={it.key}
+            onPress={() => nav.selectTab(it.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={it.label}
+            accessibilityState={{ selected: active }}
+            style={{ flex: 1, alignItems: 'center', gap: 5, paddingVertical: 2 }}
+          >
             <Icon name={it.icon} size={23} sw={active ? 2.2 : 1.8} color={c} />
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c }}>{it.label}</Text>
+            <Text style={{ fontFamily: fontFor(fonts.semibold, isRTL), fontSize: 11, color: c }}>{it.label}</Text>
           </Pressable>
         );
       })}
@@ -955,35 +996,6 @@ export function Bubble({ from, children }: { from: 'bot' | 'me'; children: React
   return <View style={[{ maxWidth: '78%', alignSelf: 'flex-start', backgroundColor: colors.surfaceMuted, paddingVertical: 12, paddingHorizontal: 15 }, radii]}>{content}</View>;
 }
 
-export function Composer({ chips }: { chips?: React.ReactNode }) {
-  const { t, isRTL } = useI18n();
-  const insets = useSafeAreaInsets();
-  return (
-    <View>
-      {chips}
-      <Row
-        gap={10}
-        style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16), borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: '#fff' }}
-      >
-        <IconButton name="plus" bare bg={colors.surfaceMuted} />
-        <View style={{ flex: 1, height: 46, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, justifyContent: 'center', paddingHorizontal: 16 }}>
-          <Txt size={14} color={colors.textTertiary}>
-            {t('Type a message…', 'اكتب رسالة…')}
-          </Txt>
-        </View>
-        <IconButton name="mic" bare bg={colors.surfaceMuted} size={19} />
-        <View style={{ borderRadius: 19, overflow: 'hidden' }}>
-          <LinearGradient colors={gradients.brand as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 38, height: 38, alignItems: 'center', justifyContent: 'center' }}>
-            <View style={isRTL ? { transform: [{ scaleX: -1 }] } : undefined}>
-              <Icon name="send" size={18} color="#fff" fill="#fff" />
-            </View>
-          </LinearGradient>
-        </View>
-      </Row>
-    </View>
-  );
-}
-
 /* ---------------- skeleton shimmer ---------------- */
 
 export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
@@ -1004,9 +1016,10 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
 /* ---------------- attribute cell (reused in summary/detail cards) ---------------- */
 
 export function Att({ label, val }: { label: string; val: string }) {
+  const { isRTL } = useI18n();
   return (
     <View style={{ flex: 1 }}>
-      <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: colors.textTertiary, letterSpacing: 0.4, textTransform: 'uppercase' }}>{label}</Text>
+      <Text style={{ fontFamily: fontFor(fonts.bold, isRTL), fontSize: 11, color: colors.textSecondary, letterSpacing: isRTL ? 0 : 0.4, textTransform: isRTL ? 'none' : 'uppercase' }}>{label}</Text>
       <Txt size={14} weight="bold" style={{ marginTop: 3 }} tabular>
         {val}
       </Txt>

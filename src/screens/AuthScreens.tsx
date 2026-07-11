@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View } from 'react-native';
+import { View, Pressable, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, gradients } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
-import { useAuth } from '../lib/auth';
+import { useAuth, Profile } from '../lib/auth';
 import { Screen, Body, Row, Txt, Button, Field, Seg, AppBar, LangToggle, Upload, Link } from '../components/ui';
+import { Select } from '../components/Select';
 import { DobField } from '../components/DobField';
 import { PlaceField } from '../components/PlaceField';
 import { Icon } from '../components/Icon';
@@ -233,9 +235,47 @@ export function RegisterProvider() {
   const [company, setCompany] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [businessType, setBusinessType] = useState('');
+  const [country, setCountry] = useState('');
+  const [license, setLicense] = useState('');
+
+  const businessTypes = [
+    { key: 'freight-forwarder', label: t('Freight forwarder', 'وسيط شحن') },
+    { key: 'trucking', label: t('Trucking service', 'خدمة الشاحنات') },
+    { key: 'winch', label: t('Winch services', 'خدمات الونش') },
+    { key: 'marine-captain', label: t('Marine captain', 'ربّان بحري') },
+    { key: 'warehousing', label: t('Warehousing', 'تخزين') },
+  ];
+  const countries = [
+    { key: 'KW', label: t('Kuwait', 'الكويت') },
+    { key: 'SA', label: t('Saudi Arabia', 'السعودية') },
+    { key: 'AE', label: t('United Arab Emirates', 'الإمارات') },
+    { key: 'QA', label: t('Qatar', 'قطر') },
+    { key: 'BH', label: t('Bahrain', 'البحرين') },
+    { key: 'OM', label: t('Oman', 'عُمان') },
+  ];
+
+  const pickLicense = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t('Permission needed', 'الإذن مطلوب'), t('Allow photo access to attach your license.', 'اسمح بالوصول للصور لإرفاق الرخصة.'));
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.4, base64: true });
+    if (res.canceled || !res.assets?.length) return;
+    const a = res.assets[0];
+    if (a.base64) setLicense(`data:${a.mimeType || 'image/jpeg'};base64,${a.base64}`);
+  };
 
   const submit = async () => {
-    await saveProfile({ persona: 'provider', company: { name: company.trim() || undefined, address: address.trim() || undefined, phone: phone.trim() || undefined } });
+    const payload: Partial<Profile> & { providerType?: string; country?: string; license?: string } = {
+      persona: 'provider',
+      company: { name: company.trim() || undefined, address: address.trim() || undefined, phone: phone.trim() || undefined },
+      providerType: businessType || undefined,
+      country: country || undefined,
+      license: license || undefined,
+    };
+    await saveProfile(payload);
     nav.push('ProviderTypes');
   };
 
@@ -253,10 +293,12 @@ export function RegisterProvider() {
           <Txt size={13} weight="semibold" color={colors.textSecondary} style={{ marginBottom: 7, marginHorizontal: 2 }}>
             {t('Company license', 'رخصة الشركة')}
           </Txt>
-          <Upload label={t('Tap to upload license (PDF / JPG / PNG)', 'اضغط لرفع الرخصة (PDF / JPG / PNG)')} />
+          <Pressable onPress={pickLicense}>
+            <Upload label={license ? t('License attached · tap to change', 'تم إرفاق الرخصة · اضغط للتغيير') : t('Tap to upload license (PDF / JPG / PNG)', 'اضغط لرفع الرخصة (PDF / JPG / PNG)')} />
+          </Pressable>
         </View>
-        <Field label={t('Business type', 'نوع النشاط')} ph={t('Select business type', 'اختر نوع النشاط')} select />
-        <Field label={t('Country', 'الدولة')} ph={t('Select country', 'اختر الدولة')} select />
+        <Select label={t('Business type', 'نوع النشاط')} placeholder={t('Select business type', 'اختر نوع النشاط')} value={businessType} options={businessTypes} onChange={setBusinessType} />
+        <Select label={t('Country', 'الدولة')} placeholder={t('Select country', 'اختر الدولة')} value={country} options={countries} onChange={setCountry} />
         <Button label={t('Create company account', 'إنشاء حساب الشركة')} size="lg" style={{ marginTop: 6 }} onPress={submit} />
         <Link label={t('Back to login', 'العودة لتسجيل الدخول')} style={{ marginTop: 12 }} onPress={nav.canGoBack ? nav.pop : undefined} />
         <AuthFooter />

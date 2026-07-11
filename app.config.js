@@ -17,7 +17,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.khd.shipbroker',
-      buildNumber: '2',
+      buildNumber: '3',
       usesAppleSignIn: true,
       // Used by native / EAS builds. Ignored in Expo Go.
       googleServicesFile: './GoogleService-Info.plist',
@@ -40,7 +40,7 @@ export default {
     },
     android: {
       package: 'com.khd.shipbroker',
-      versionCode: 2,
+      versionCode: 3,
       googleServicesFile: './google-services.json',
       usesCleartextTraffic: true,
       adaptiveIcon: {

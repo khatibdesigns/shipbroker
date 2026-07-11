@@ -31,6 +31,13 @@ export type Profile = {
   persona?: Persona;
   company?: { name?: string; address?: string; phone?: string };
   providerType?: string;
+  // Provider-onboarding capture (freight forwarder / trucking / winch / marine).
+  services?: string[];
+  coverage?: string;
+  country?: string;
+  license?: string; // license type key, or a data URI of an uploaded document
+  maxBoatLength?: string;
+  maxGt?: string;
   createdAt?: number;
 };
 

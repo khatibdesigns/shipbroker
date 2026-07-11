@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, ScrollView, Image, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients, radius, fonts } from '../lib/theme';
+import { colors, gradients, radius, fonts, fontFor } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
 import { useNav } from '../lib/nav';
 import { useShipments } from '../lib/shipments';
@@ -58,7 +58,7 @@ function TypingBubble() {
 
 function DraftSummary({ draft }: { draft: ShipmentDraft }) {
   const { t } = useI18n();
-  const weight = draft.weightKg != null ? `${draft.weightKg.toLocaleString()} kg` : draft.size ? t(cap(draft.size), '') : '—';
+  const weight = draft.weightKg != null ? `${draft.weightKg.toLocaleString()} kg` : draft.size ? sizeLabel(t, draft.size) : '—';
   return (
     <Card style={{ padding: 15, alignSelf: 'stretch', marginTop: 2 }}>
       <Row gap={12} style={{ marginBottom: 13 }}>
@@ -89,7 +89,7 @@ function DraftSummary({ draft }: { draft: ShipmentDraft }) {
       </Row>
       <Row gap={10} style={{ paddingTop: 13, borderTopWidth: 1, borderTopColor: colors.border }}>
         <Att label={t('Weight', 'الوزن')} val={weight} />
-        <Att label={t('Size', 'الحجم')} val={draft.size ? t(cap(draft.size), '') : '—'} />
+        <Att label={t('Size', 'الحجم')} val={draft.size ? sizeLabel(t, draft.size) : '—'} />
         <Att label={t('Timing', 'التوقيت')} val={draft.timing || '—'} />
       </Row>
     </Card>
@@ -98,6 +98,14 @@ function DraftSummary({ draft }: { draft: ShipmentDraft }) {
 
 function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+// Translate a shipment size token to a natural label in the active language.
+function sizeLabel(t: (en: string, ar?: string) => string, size?: string | null) {
+  const k = (size || '').toLowerCase();
+  if (k === 'small') return t('Small', 'صغير');
+  if (k === 'medium') return t('Medium', 'متوسط');
+  if (k === 'large') return t('Large', 'كبير');
+  return size ? cap(size) : '—';
 }
 function iconForCategory(c?: string | null): any {
   const k = (c || '').toLowerCase();
@@ -108,7 +116,7 @@ function iconForCategory(c?: string | null): any {
 }
 
 export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
-  const { t } = useI18n();
+  const { t, isRTL } = useI18n();
   const nav = useNav();
   const { create } = useShipments();
   const { carriers, getCarrier } = useCatalog();
@@ -264,7 +272,7 @@ export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
               onChangeText={setInput}
               placeholder={t('Type a message…', 'اكتب رسالة…')}
               placeholderTextColor={colors.textTertiary}
-              style={{ fontFamily: fonts.medium, fontSize: 14.5, color: colors.textPrimary, paddingVertical: 0 }}
+              style={{ fontFamily: fontFor(fonts.medium, isRTL), fontSize: 14.5, color: colors.textPrimary, paddingVertical: 0, textAlign: isRTL ? 'right' : 'left' }}
               onSubmitEditing={submitText}
               returnKeyType="send"
             />

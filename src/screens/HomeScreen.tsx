@@ -194,13 +194,13 @@ export default function HomeScreen() {
                   </Txt>
                 </Row>
               </View>
-              <Button label={t('EDIT', 'تعديل')} variant="ghost" size="sm" full={false} />
+              <Button label={t('EDIT', 'تعديل')} variant="ghost" size="sm" full={false} onPress={() => nav.selectTab('account')} />
             </Card>
             <Row justify="space-between" style={{ marginBottom: 10 }}>
               <Txt size={16} weight="bold">
                 {t('Available packages', 'الطرود المتاحة')}
               </Txt>
-              <IconButton name="filter" size={17} d={34} />
+              <IconButton name="filter" size={17} d={34} onPress={() => nav.push('AvailablePackages')} />
             </Row>
             {packages.map((p) => (
               <PackageCard

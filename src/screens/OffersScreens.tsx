@@ -16,6 +16,15 @@ function modeLabel(t: (en: string, ar?: string) => string, m: ModeKey) {
   return m === 'sea' ? t('Sea', 'بحر') : m === 'air' ? t('Air', 'جو') : t('Road', 'بر');
 }
 
+// Translate a shipment size token to a natural label in the active language.
+function sizeLabel(t: (en: string, ar?: string) => string, size: string) {
+  const k = size.toLowerCase();
+  if (k === 'small') return t('Small', 'صغير');
+  if (k === 'medium') return t('Medium', 'متوسط');
+  if (k === 'large') return t('Large', 'كبير');
+  return size[0].toUpperCase() + size.slice(1);
+}
+
 function headerIcon(category?: string | null): IconName {
   const k = (category || '').toLowerCase();
   if (k.includes('vehicle') || k.includes('car')) return 'car';
@@ -32,7 +41,7 @@ function ShipmentHeader({ draft, onFilter }: { draft?: ShipmentDraft; onFilter?:
   const to = draft?.toCity || t('Paris', 'باريس');
   const badges: { label: string; urgent?: boolean }[] = [];
   if (draft?.weightKg != null) badges.push({ label: `${draft.weightKg.toLocaleString()} kg` });
-  if (draft?.size) badges.push({ label: t(draft.size[0].toUpperCase() + draft.size.slice(1), '') });
+  if (draft?.size) badges.push({ label: sizeLabel(t, draft.size) });
   if (draft?.timing) badges.push({ label: draft.timing, urgent: /asap/i.test(draft.timing) });
   if (!badges.length) {
     badges.push({ label: '1,500 kg' }, { label: t('Large', 'كبير') }, { label: 'ASAP', urgent: true });
