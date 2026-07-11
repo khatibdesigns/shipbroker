@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, ScrollView, Image, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, gradients, radius, fonts, fontFor } from '../lib/theme';
 import { useI18n } from '../lib/i18n';
@@ -118,6 +119,7 @@ function iconForCategory(c?: string | null): any {
 
 export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
   const { t, isRTL } = useI18n();
+  const insets = useSafeAreaInsets();
   const nav = useNav();
   const { create } = useShipments();
   const { carriers, getCarrier } = useCatalog();
@@ -221,8 +223,10 @@ export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
 
   return (
     <Screen>
-      <AgentBar onNew={reset} canReset={started} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      {/* Header lives INSIDE the KAV so keyboardVerticalOffset is just the top
+          inset — no header-height guessing that left a white gap above the keyboard. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}>
+        <AgentBar onNew={reset} canReset={started} />
         <ScrollView
           ref={scroller}
           style={{ flex: 1 }}
@@ -278,6 +282,12 @@ export default function AiAgentScreen({ carrierId }: { carrierId?: string }) {
               style={{ fontFamily: fontFor(fonts.medium, isRTL), fontSize: 14.5, color: colors.textPrimary, paddingVertical: 0, textAlign: isRTL ? 'right' : 'left' }}
               onSubmitEditing={submitText}
               returnKeyType="send"
+              autoCorrect={false}
+              autoComplete="off"
+              autoCapitalize="sentences"
+              spellCheck={false}
+              textContentType="none"
+              keyboardType="default"
             />
           </View>
           <Pressable onPress={submitText} disabled={!input.trim() || loading}>
