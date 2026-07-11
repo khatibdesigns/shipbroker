@@ -54,6 +54,7 @@ export default {
     },
     plugins: [
       'expo-font',
+      'expo-notifications',
       // Splash: a fixed-width centred logo on teal — never clipped (contain).
       [
         'expo-splash-screen',

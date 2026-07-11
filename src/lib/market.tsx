@@ -6,6 +6,7 @@ import { firestore } from './firebase';
 import { Offer, Carrier, buildOffers } from './catalog';
 import { Shipment } from './shipments';
 import { ShipmentDraft } from './ai';
+import { notify } from './notifications';
 
 // The real two-sided marketplace layer. Shipments live top-level (users own them
 // via senderId); carrier BIDS live under shipments/{id}/offers. A freshly created
@@ -127,6 +128,8 @@ export async function submitCarrierOffer(
     note: bid.note?.trim() || null,
     createdAt: Date.now(),
   });
+  // Notify the shipment owner that a new bid arrived.
+  notify('new_offer', shipmentId);
 }
 
 // Sender accepts one offer: mark it accepted, decline the rest, move the shipment
@@ -150,6 +153,8 @@ export async function acceptOffer(shipmentId: string, offerId: string, winner: M
     orderId,
   });
   await batch.commit();
+  // Notify the winning carrier that their bid was accepted.
+  notify('offer_accepted', shipmentId, { carrierId: winner.carrierId });
   return orderId;
 }
 

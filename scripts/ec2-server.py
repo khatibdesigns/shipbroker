@@ -338,6 +338,83 @@ def _send_plan_push(fcm_token, jid, res):
         print("[plan-push] send failed:", str(e)[:200], flush=True)
 
 
+# ── ShipBroker marketplace push: a bid landed on your shipment / your bid was
+# accepted. Uses a SEPARATE firebase-admin app on the shipbroker-bc9b3 project
+# (its own service account) — the Spotly app above can't read shipbroker data or
+# send to shipbroker tokens. No-ops cleanly until the SA file is present.
+_SB_APP = None  # None = untried, False = unavailable, else the admin app
+_SB_LOCK = threading.Lock()
+
+
+def _ensure_sb_admin():
+    global _SB_APP
+    with _SB_LOCK:
+        if _SB_APP is not None:
+            return _SB_APP or None
+        try:
+            import firebase_admin
+            from firebase_admin import credentials
+            sa = os.environ.get("SHIPBROKER_SA", "/home/ec2-user/caption-proxy/shipbroker-sa.json")
+            if not os.path.exists(sa):
+                print("[sb-notify] no shipbroker SA at", sa, "— push disabled", flush=True)
+                _SB_APP = False
+                return None
+            _SB_APP = firebase_admin.initialize_app(credentials.Certificate(sa), name="shipbroker")
+        except Exception as e:
+            print("[sb-notify] init failed:", str(e)[:200], flush=True)
+            _SB_APP = False
+            return None
+        return _SB_APP
+
+
+def run_notify(payload):
+    """Send a marketplace push. Body: {event, shipmentId, carrierId?}. Reads the
+    recipient's stored pushToken from Firestore and sends via FCM. Returns a small
+    status object; never raises the send failure into the caller's app flow."""
+    app = _ensure_sb_admin()
+    if not app:
+        return {"ok": False, "reason": "shipbroker SA not configured on server"}
+    from firebase_admin import firestore as fa_fs, messaging
+    db = fa_fs.client(app)
+    event = payload.get("event")
+    sid = (payload.get("shipmentId") or "").strip()
+    if not sid:
+        return {"ok": False, "reason": "missing shipmentId"}
+
+    if event == "new_offer":
+        snap = db.collection("shipments").document(sid).get()
+        recipient = (snap.to_dict() or {}).get("senderId") if snap.exists else None
+        title = "New offer on your shipment"
+        body = "A carrier just placed a bid — tap to review."
+    elif event == "offer_accepted":
+        recipient = (payload.get("carrierId") or "").strip() or None
+        title = "Your offer was accepted \U0001F389"
+        body = "Tap to see the shipment details."
+    else:
+        return {"ok": False, "reason": "unknown event"}
+
+    if not recipient:
+        return {"ok": False, "reason": "no recipient"}
+    prof = db.collection("users").document(recipient).get()
+    token = (prof.to_dict() or {}).get("pushToken") if prof.exists else None
+    if not token:
+        return {"ok": True, "sent": False, "reason": "recipient has no push token"}
+    try:
+        messaging.send(
+            messaging.Message(
+                token=token,
+                notification=messaging.Notification(title=title, body=body),
+                data={"type": "market", "event": str(event), "shipmentId": sid},
+                android=messaging.AndroidConfig(priority="high"),
+                apns=messaging.APNSConfig(payload=messaging.APNSPayload(aps=messaging.Aps(sound="default"))),
+            ),
+            app=app,
+        )
+        return {"ok": True, "sent": True}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+
 def _start_plan_job(prompt, fcm_token=None):
     jid = uuid.uuid4().hex
     with _JOBS_LOCK:
@@ -498,6 +575,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(504, {"error": "assistant timed out"})
             except Exception as e:
                 self._send(500, {"error": str(e)[:400]})
+            return
+        if self.path == "/notify":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                payload = json.loads(self.rfile.read(length) or b"{}")
+            except Exception:
+                self._send(400, {"error": "invalid JSON body"})
+                return
+            try:
+                self._send(200, run_notify(payload))
+            except Exception as e:
+                self._send(500, {"error": str(e)[:300]})
             return
         if self.path == "/plan/start":
             try:

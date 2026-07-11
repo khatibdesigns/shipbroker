@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, BackHandler } from 'react-native';
 import { useNav } from './lib/nav';
 import { useAuth } from './lib/auth';
+import { usePushRegistration } from './lib/notifications';
 import { colors } from './lib/theme';
 import { ScreenTransition, EdgeBack } from './components/anim';
 import Splash from './components/Splash';
@@ -67,7 +68,10 @@ const AUTH_FLOW = new Set([
 
 export default function Shell() {
   const nav = useNav();
-  const { ready, cloud, signedIn, isAnonymous, profile } = useAuth();
+  const { ready, cloud, signedIn, isAnonymous, profile, uid, saveProfile } = useAuth();
+
+  // Register for marketplace push notifications once signed in.
+  usePushRegistration(signedIn ? uid : null, profile.pushToken, saveProfile);
 
   // Android hardware back → pop the current stack when possible.
   useEffect(() => {

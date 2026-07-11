@@ -38,6 +38,9 @@ export type Profile = {
   license?: string; // license type key, or a data URI of an uploaded document
   maxBoatLength?: string;
   maxGt?: string;
+  // Push: native device token (FCM/APNs) + platform, for marketplace pushes.
+  pushToken?: string;
+  pushPlatform?: string;
   createdAt?: number;
 };
 
