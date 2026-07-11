@@ -7,6 +7,7 @@ import { useNav } from '../lib/nav';
 import { useShipments } from '../lib/shipments';
 import { useCatalog, Offer } from '../lib/catalog';
 import { useShipmentOffers, seedInstantOffers, acceptOffer, MarketOffer } from '../lib/market';
+import { holdEscrow, parseKwd } from '../lib/payments';
 import { ShipmentDraft, askAboutOffer } from '../lib/ai';
 import {
   Screen, Body, Row, Txt, Card, Button, Badge, ModeBadge, Rating, Avatar, IconButton, BottomNav, AppBar, Sheet, RouteArrow, Hr,
@@ -491,11 +492,14 @@ export function Escrow({ shipmentId, offer }: { shipmentId?: string; offer?: Mar
   const orderId = '#SB-' + (shipmentId ? shipmentId.slice(-5).toUpperCase() : '00000');
   const price = offer?.price || '—';
 
-  // Accept the selected bid: mark it accepted, decline the rest, and move the
-  // shipment to in_transit with the winning carrier's terms (one atomic batch).
+  // Accept the selected bid (mark accepted / decline rest / shipment→in_transit),
+  // then hold the payment in escrow via the payment gateway (mock for now).
   React.useEffect(() => {
     if (shipmentId && offer?.id) {
-      acceptOffer(shipmentId, offer.id, offer, lang === 'ar' ? offer.eta.ar : offer.eta.en).catch(() => {});
+      (async () => {
+        await acceptOffer(shipmentId, offer.id, offer, lang === 'ar' ? offer.eta.ar : offer.eta.en);
+        await holdEscrow(shipmentId, parseKwd(offer.price));
+      })().catch(() => {});
     }
   }, [shipmentId]);
 
