@@ -27,15 +27,6 @@ export default {
           'ShipBroker uses your camera so the AI agent can see and identify the item you want to ship.',
         NSPhotoLibraryUsageDescription:
           'ShipBroker lets you attach a photo of your item so the AI agent can identify it and prefill your shipment.',
-        // The AI-agent proxy on EC2 is plain HTTP — allow cleartext to that host.
-        NSAppTransportSecurity: {
-          NSExceptionDomains: {
-            '16.16.79.251': {
-              NSExceptionAllowsInsecureHTTPLoads: true,
-              NSIncludesSubdomains: false,
-            },
-          },
-        },
       },
     },
     android: {

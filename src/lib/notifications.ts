@@ -9,7 +9,7 @@ import * as Device from 'expo-device';
 // via firebase-admin. Android works end-to-end today; iOS needs an APNs key
 // registered in Firebase before delivery works (registration still no-ops safely).
 
-const API = (process.env.EXPO_PUBLIC_SHIP_API_URL ?? 'http://16.16.79.251:8090').replace(/\/$/, '');
+const API = (process.env.EXPO_PUBLIC_SHIP_API_URL ?? 'https://ai.khatibdesigns.com').replace(/\/$/, '');
 
 // Show banners while the app is foregrounded.
 Notifications.setNotificationHandler({

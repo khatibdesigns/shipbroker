@@ -2,7 +2,7 @@
 // The proxy runs `claude` under a personal subscription (no API tokens) and can
 // read an attached photo via the CLI's Read tool to identify the item.
 
-const DEFAULT_API = 'http://16.16.79.251:8090';
+const DEFAULT_API = 'https://ai.khatibdesigns.com';
 const API = (process.env.EXPO_PUBLIC_SHIP_API_URL ?? DEFAULT_API).replace(/\/$/, '');
 const SHIP_ENDPOINT = `${API}/ship`;
 
